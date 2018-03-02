@@ -312,7 +312,7 @@ int parse_config()
 
 		ga_t *_ga = calloc(1, sizeof(ga_t));
 
-		if (prev_ga)
+		if (prev_ga != NULL)
 			prev_ga->next = _ga;
 		else
 			config.gas = _ga;
@@ -321,6 +321,7 @@ int parse_config()
 		_ga->addr = ga_addr;
 		_ga->dpt = (uint8_t)dpt->valueint;
 		_ga->series = strdup(series->valuestring);
+		prev_ga = _ga;
 
 		cJSON *ignored_senders = cJSON_GetObjectItemCaseSensitive(ga_obj, "ignored_senders");
 		if (!cJSON_IsArray(ignored_senders))
