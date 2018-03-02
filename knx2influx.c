@@ -17,7 +17,7 @@
 
 #define MULTICAST_PORT            3671 // [Default 3671]
 #define MULTICAST_IP              "224.0.23.12" // [Default IPAddress(224, 0, 23, 12)]
-#define INTERFACE_IP			  "10.1.36.13"
+#define INTERFACE_IP              "10.1.36.13"
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -100,7 +100,7 @@ void process_packet(uint8_t *buf, size_t len)
 			msg.data = data;
 			//callbacks[callback_assignments[i].callback_id].fkt(msg, callbacks[callback_assignments[i].callback_id].arg);
 			//continue;
-    	}
+		}
 	}
 }
 
@@ -179,5 +179,4 @@ int main(int argc, char *argv)
 
 	return 0;
 }
-
 
