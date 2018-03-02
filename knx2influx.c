@@ -13,6 +13,9 @@
 #include <string.h>
 #include <errno.h>
 
+#include <curl/curl.h>
+
+#include "cJSON.h"
 #include "knx.h"
 
 #define MULTICAST_PORT            3671 // [Default 3671]
@@ -104,8 +107,92 @@ void process_packet(uint8_t *buf, size_t len)
 	}
 }
 
+typedef struct __config
+{
+	char *host;
+	char *database;
+	char *user;
+	char *password;
+} config_t;
+
+config_t config;
+
+int parse_config()
+{
+	int status = 0;
+	FILE *f = fopen("knx2influx.json", "rb");
+	fseek(f, 0, SEEK_END);
+	uint64_t fsize = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	char *json_str = malloc(fsize + 1);
+	fread(json_str, fsize, 1, f);
+	fclose(f);
+	json_str[fsize] = '\0';
+
+	char *error_ptr;
+	cJSON *json = cJSON_Parse(json_str);
+
+	if (json == NULL)
+	{
+		error_ptr = (char *)cJSON_GetErrorPtr();
+		goto end;
+	}
+
+	cJSON *host = cJSON_GetObjectItemCaseSensitive(json, "host");
+	if (cJSON_IsString(host) && (host->valuestring != NULL))
+	{
+		config.host = strdup(host->valuestring);
+	}
+	else
+	{
+		error_ptr = "No host given in config!\n";
+		goto error;
+	}
+
+	cJSON *database = cJSON_GetObjectItemCaseSensitive(json, "database");
+	if (cJSON_IsString(database) && (database->valuestring != NULL))
+	{
+		config.database = strdup(database->valuestring);
+	}
+	else
+	{
+		error_ptr = "No database given in config!\n";
+		goto error;
+	}
+	cJSON *user = cJSON_GetObjectItemCaseSensitive(json, "user");
+	if (cJSON_IsString(user) && (user->valuestring != NULL))
+	{
+		config.database = strdup(user->valuestring);
+	}
+	cJSON *password = cJSON_GetObjectItemCaseSensitive(json, "password");
+	if (cJSON_IsString(password) && (password->valuestring != NULL))
+	{
+		config.password = strdup(password->valuestring);
+	}
+
+	goto end;
+
+error:
+	printf("JSON error: %s\n", error_ptr);
+	cJSON_Delete(json);
+	status = -1;
+end:
+	free(json_str);
+	return status;
+}
+
 int main(int argc, char *argv)
 {
+	// Parse config first
+	
+	if (parse_config() < 0)
+	{
+		exit(EXIT_FAILURE);
+	}
+
+	printf("Sending data to %s / %s\n", config.host, config.database);
+
 	struct sockaddr_in sin = {};
 	sin.sin_family = PF_INET;
 	sin.sin_addr.s_addr = INADDR_ANY;
