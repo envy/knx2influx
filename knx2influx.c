@@ -375,13 +375,13 @@ int parse_config()
 			error_ptr = "'ga' must not be empty!";
 			goto error;
 		}
-		printf("GA: %s", ga->valuestring);
+		//printf("GA: %s", ga->valuestring);
 
 		uint32_t area, line, member;
 		
 		sscanf(ga->valuestring, "%u/%u/%u", &area, &line, &member);
 
-		printf(" -> %u/%u/%u\n", area, line, member);
+		//printf(" -> %u/%u/%u\n", area, line, member);
 
 		cJSON *series = cJSON_GetObjectItemCaseSensitive(ga_obj, "series");
 		if (!cJSON_IsString(series))
@@ -394,7 +394,7 @@ int parse_config()
 			error_ptr = "'series' must not be empty!";
 			goto error;
 		}
-		printf("Series: %s\n", series->valuestring);
+		//printf("Series: %s\n", series->valuestring);
 
 		cJSON *dpt = cJSON_GetObjectItemCaseSensitive(ga_obj, "dpt");
 		if (!cJSON_IsNumber(dpt))
@@ -417,59 +417,65 @@ int parse_config()
 		prev_ga = _ga;
 
 		cJSON *ignored_senders = cJSON_GetObjectItemCaseSensitive(ga_obj, "ignored_senders");
-		if (!cJSON_IsArray(ignored_senders))
+		if (ignored_senders)
 		{
-			error_ptr = "'ignored_senders' is not an array!";
-			goto error;
-		}
-		_ga->ignored_senders_len = cJSON_GetArraySize(ignored_senders);
-		_ga->ignored_senders = calloc(_ga->ignored_senders_len, sizeof(address_t));
-		int i = 0;
-		cJSON *ignored_sender = NULL;
-		cJSON_ArrayForEach(ignored_sender, ignored_senders)
-		{
-			if (!cJSON_IsString(ignored_sender))
+			if (!cJSON_IsArray(ignored_senders))
 			{
-				error_ptr = "Expected array of strings, got something that is not a string in 'ignored_senders'";
+				error_ptr = "'ignored_senders' is not an array!";
 				goto error;
 			}
-			if (ignored_sender->valuestring == NULL)
+			_ga->ignored_senders_len = cJSON_GetArraySize(ignored_senders);
+			_ga->ignored_senders = calloc(_ga->ignored_senders_len, sizeof(address_t));
+			int i = 0;
+			cJSON *ignored_sender = NULL;
+			cJSON_ArrayForEach(ignored_sender, ignored_senders)
 			{
-				error_ptr = "Got empty string instead of a physical address in 'ignored_senders'";
-				goto error;
+				if (!cJSON_IsString(ignored_sender))
+				{
+					error_ptr = "Expected array of strings, got something that is not a string in 'ignored_senders'";
+					goto error;
+				}
+				if (ignored_sender->valuestring == NULL)
+				{
+					error_ptr = "Got empty string instead of a physical address in 'ignored_senders'";
+					goto error;
+				}
+				uint32_t area, line, member;
+				sscanf(ignored_sender->valuestring, "%u.%u.%u", &area, &line, &member);
+				_ga->ignored_senders[i].pa.area = area;
+				_ga->ignored_senders[i].pa.line = line;
+				_ga->ignored_senders[i].pa.member = member;
+				++i;
 			}
-			uint32_t area, line, member;
-			sscanf(ignored_sender->valuestring, "%u.%u.%u", &area, &line, &member);
-			_ga->ignored_senders[i].pa.area = area;
-			_ga->ignored_senders[i].pa.line = line;
-			_ga->ignored_senders[i].pa.member = member;
-			++i;
 		}
 
 		cJSON *tags = cJSON_GetObjectItemCaseSensitive(ga_obj, "tags");
-		if (!cJSON_IsArray(tags))
+		if (tags)
 		{
-			error_ptr = "'tags' is not an array!";
-			goto error;
-		}
-		_ga->tags_len = cJSON_GetArraySize(tags);
-		_ga->tags = calloc(_ga->tags_len, sizeof(char *));
-		i = 0;
-		cJSON *tag = NULL;
-		cJSON_ArrayForEach(tag, tags)
-		{
-			if (!cJSON_IsString(tag))
+			if (!cJSON_IsArray(tags))
 			{
-				error_ptr = "Expected array of string, got something that is not a string in 'tags'";
+				error_ptr = "'tags' is not an array!";
 				goto error;
 			}
-			if (tag->valuestring == NULL)
+			_ga->tags_len = cJSON_GetArraySize(tags);
+			_ga->tags = calloc(_ga->tags_len, sizeof(char *));
+			int i = 0;
+			cJSON *tag = NULL;
+			cJSON_ArrayForEach(tag, tags)
 			{
-				error_ptr = "Got empty string instead of a key=value pair in 'tags'";
-				goto error;
+				if (!cJSON_IsString(tag))
+				{
+					error_ptr = "Expected array of string, got something that is not a string in 'tags'";
+					goto error;
+				}
+				if (tag->valuestring == NULL)
+				{
+					error_ptr = "Got empty string instead of a key=value pair in 'tags'";
+					goto error;
+				}
+				_ga->tags[i] = strdup(tag->valuestring);
+				++i;
 			}
-			_ga->tags[i] = strdup(tag->valuestring);
-			++i;
 		}
 	}
 	
@@ -493,7 +499,7 @@ int main(int argc, char *argv)
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Sending data to %s / %s\n", config.host, config.database);
+	printf("Sending data to %s database %s\n", config.host, config.database);
 
 	struct sockaddr_in sin = {};
 	sin.sin_family = PF_INET;
@@ -504,7 +510,7 @@ int main(int argc, char *argv)
 		perror("socket: ");
 		exit(EXIT_FAILURE);
 	}
-	printf("Our socket fd is %d\n", socket_fd);
+	//printf("Our socket fd is %d\n", socket_fd);
 
 	int loop = 1;
 	if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &loop, sizeof(loop)) < 0)
