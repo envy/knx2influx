@@ -239,7 +239,7 @@ void process_packet(uint8_t *buf, size_t len)
 				}
 				case 13:
 				{
-					int32_t val = data_to_1byte_int(data);
+					int32_t val = data_to_4byte_int(data);
 					char buf[12];
 					snprintf(buf, 12, "%d", val);
 					strcat(_post, "value=");
