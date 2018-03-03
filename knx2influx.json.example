@@ -1,0 +1,28 @@
+{
+	"host": "http://localhost:8086",
+	"database": "knx",
+	"gas":
+	[
+		{
+			"ga": "0/1/1",
+			"ignored_senders": ["1.1.253"],
+			"series": "temp",
+			"dpt": 9,
+			"tags": ["room=Living"]
+		},
+		{
+			"ga": "0/1/2",
+			"ignored_senders": ["1.1.253"],
+			"series": "humidity",
+			"dpt": 9,
+			"tags": ["room=Living"]
+		},
+		{
+			"ga": "0/1/3",
+			"ignored_senders": ["1.1.253"],
+			"series": "pressure",
+			"dpt": 9,
+			"tags": ["room=Living"]
+		}
+	]
+}
