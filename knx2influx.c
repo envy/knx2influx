@@ -19,6 +19,7 @@
 
 #include "cJSON.h"
 #include "knx.h"
+#include "conversion.h"
 
 #define MULTICAST_PORT            3671 // [Default 3671]
 #define MULTICAST_IP              "224.0.23.12" // [Default IPAddress(224, 0, 23, 12)]
@@ -85,13 +86,6 @@ void post(char const *data)
 
 	ret = curl_easy_perform(hnd);
 	curl_easy_cleanup(hnd);
-}
-
-float data_to_2byte_float(uint8_t *data)
-{
-	uint8_t expo = (data[1] & 0b01111000) >> 3;
-	int16_t mant = ((data[1] & 0b10000111) << 8) | data[2];
-	return 0.01f * mant * pow(2, expo);
 }
 
 void process_packet(uint8_t *buf, size_t len)
@@ -180,16 +174,104 @@ void process_packet(uint8_t *buf, size_t len)
 				strcat(_post, ",");
 				strcat(_post, cur->tags[i]);
 			}
-			strcat(_post, " value=");
 			
 			switch (cur->dpt)
 			{
+				case 1:
+				{
+					bool val = data_to_bool(data);
+					strcat(_post, " value=");
+					strcat(_post, val ? "t" : "f");
+					break;
+				}
+				case 2:
+				{
+					bool val = data_to_bool(data);
+					strcat(_post, " value=");
+					strcat(_post, val ? "t" : "f");
+					uint8_t other_bit = data[0] >> 1;
+					bool control = data_to_bool(&other_bit);
+					strcat(_post, ",control=");
+					strcat(_post, control ? "t" : "f");
+					break;
+				}
+				case 5:
+				{
+					uint8_t val = data_to_1byte_uint(data);
+					char buf[4];
+					snprintf(buf, 4, "%u", val);
+					strcat(_post, " value=");
+					strcat(_post, buf);
+					strcat(_post, "i");
+					break;
+				}
+				case 6:
+				{
+					int8_t val = data_to_1byte_int(data);
+					char buf[5];
+					snprintf(buf, 5, "%d", val);
+					strcat(_post, " value=");
+					strcat(_post, buf);
+					strcat(_post, "i");
+					break;
+				}
+				case 7:
+				{
+					uint16_t val = data_to_2byte_uint(data);
+					char buf[6];
+					snprintf(buf, 6, "%u", val);
+					strcat(_post, " value=");
+					strcat(_post, buf);
+					strcat(_post, "i");
+					break;
+				}
+				case 8:
+				{
+					int16_t val = data_to_2byte_int(data);
+					char buf[7];
+					snprintf(buf, 7, "%d", val);
+					strcat(_post, " value=");
+					strcat(_post, buf);
+					strcat(_post, "i");
+					break;
+				}
 				case 9:
 				{
 					float val = data_to_2byte_float(data);
 					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
 					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", val);
+					strcat(_post, " value=");
 					strcat(_post, buf);
+					break;
+				}
+				case 12:
+				{
+					uint32_t val = data_to_4byte_uint(data);
+					char buf[11];
+					snprintf(buf, 11, "%u", val);
+					strcat(_post, " value=");
+					strcat(_post, buf);
+					strcat(_post, "i");
+					break;
+				}
+				case 13:
+				{
+					int32_t val = data_to_1byte_int(data);
+					char buf[12];
+					snprintf(buf, 12, "%d", val);
+					strcat(_post, " value=");
+					strcat(_post, buf);
+					strcat(_post, "i");
+					break;
+				}
+				case 14:
+				{
+					float val = data_to_4byte_float(data);
+					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
+					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", val);
+					strcat(_post, " value=");
+					strcat(_post, buf);
+					break;
 				}
 			}
 
