@@ -8,6 +8,14 @@ It listens on the KNX/IP multicast address for telegrams and writes the data to 
 
 You need a KNX router that sends out KNX/IP multicast packets. Furthermore, you need to configure the filter table of the router to pass the telegrams you want monitored to the IP line.
 
+## Dependencies
+
+This program depends on `libcurl`.
+
+## How to build
+
+`make knx2influx`
+
 ## Example config
 
 Minimal config is:
