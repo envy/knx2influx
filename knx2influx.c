@@ -63,6 +63,11 @@ void exithandler()
 	close(socket_fd);
 }
 
+size_t curl_write_data(void *buffer, size_t size, size_t nmemb, void *userp)
+{
+   return size * nmemb;
+}
+
 void post(char const *data)
 {
 	CURLcode ret;
@@ -83,6 +88,8 @@ void post(char const *data)
 	curl_easy_setopt(hnd, CURLOPT_MAXREDIRS, 50L);
 	curl_easy_setopt(hnd, CURLOPT_CUSTOMREQUEST, "POST");
 	curl_easy_setopt(hnd, CURLOPT_TCP_KEEPALIVE, 0L);
+
+	curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, curl_write_data);
 
 	ret = curl_easy_perform(hnd);
 	curl_easy_cleanup(hnd);
@@ -281,7 +288,7 @@ void process_packet(uint8_t *buf, size_t len)
 next:
 		cur = cur->next;
 	}
-	printf("\n");
+	//printf("\n");
 }
 
 
