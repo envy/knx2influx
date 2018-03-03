@@ -98,63 +98,68 @@ void process_packet(uint8_t *buf, size_t len)
 {
 	knx_ip_pkt_t *knx_pkt = (knx_ip_pkt_t *)buf;
 
-	printf("ST: 0x%02x\n", ntohs(knx_pkt->service_type));
+	//printf("ST: 0x%02x\n", ntohs(knx_pkt->service_type));
 
 	if (knx_pkt->header_len != 0x06 && knx_pkt->protocol_version != 0x10 && knx_pkt->service_type != KNX_ST_ROUTING_INDICATION)
 		return;
 
 	cemi_msg_t *cemi_msg = (cemi_msg_t *)knx_pkt->pkt_data;
 
-	printf("MT: 0x%02x\n", cemi_msg->message_code);
+	//printf("MT: 0x%02x\n", cemi_msg->message_code);
 
 	if (cemi_msg->message_code != KNX_MT_L_DATA_IND)
 		return;
 
-	printf("ADDI: 0x%02x\n", cemi_msg->additional_info_len);
+	//printf("ADDI: 0x%02x\n", cemi_msg->additional_info_len);
 
 	cemi_service_t *cemi_data = &cemi_msg->data.service_information;
 
 	if (cemi_msg->additional_info_len > 0)
 		cemi_data = (cemi_service_t *)(((uint8_t *)cemi_data) + cemi_msg->additional_info_len);
 
-	printf("C1: 0x%02x   C2: 0x%02x   DT: 0x%02x\n", cemi_data->control_1.byte, cemi_data->control_2.byte, cemi_data->control_2.bits.dest_addr_type);
+	//printf("C1: 0x%02x   C2: 0x%02x   DT: 0x%02x\n", cemi_data->control_1.byte, cemi_data->control_2.byte, cemi_data->control_2.bits.dest_addr_type);
 
 	if (cemi_data->control_2.bits.dest_addr_type != 0x01)
 		return;
 
-	printf("HC: 0x%02x   EFF: 0x%02x\n", cemi_data->control_2.bits.hop_count, cemi_data->control_2.bits.extended_frame_format);
+	//printf("HC: 0x%02x   EFF: 0x%02x\n", cemi_data->control_2.bits.hop_count, cemi_data->control_2.bits.extended_frame_format);
 
-	printf("Source: 0x%02x%02x (%u.%u.%u)\n", cemi_data->source.bytes.high, cemi_data->source.bytes.low, cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member);
-	printf("Dest:   0x%02x%02x (%u/%u/%u)\n", cemi_data->destination.bytes.high, cemi_data->destination.bytes.low, cemi_data->destination.ga.area, cemi_data->destination.ga.line, cemi_data->destination.ga.member);
+	//printf("Source: 0x%02x%02x (%u.%u.%u)\n", cemi_data->source.bytes.high, cemi_data->source.bytes.low, cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member);
+	//printf("Dest:   0x%02x%02x (%u/%u/%u)\n", cemi_data->destination.bytes.high, cemi_data->destination.bytes.low, cemi_data->destination.ga.area, cemi_data->destination.ga.line, cemi_data->destination.ga.member);
 
 	knx_command_type_t ct = (knx_command_type_t)(((cemi_data->data[0] & 0xC0) >> 6) | ((cemi_data->pci.apci & 0x03) << 2));
 
-	printf("CT: 0x%02x\n", ct);
+	//printf("CT: 0x%02x\n", ct);
 
+	if (ct != KNX_CT_WRITE)
+		return;
+
+	/*
 	for (int i = 0; i < cemi_data->data_len; ++i)
 	{
 		printf(" 0x%02x", cemi_data->data[i]);
 	}
 	printf("\n==\n");
+	*/
 
-  // Call callbacks
+	// Call callbacks
 	//for (int i = 0; i < registered_callback_assignments; ++i)
 	ga_t *cur = config.gas;
 	while(cur != NULL)
 	{
 		//printf("Testing: 0x%02x%02x\n", callback_assignments[i].address.bytes.high, callback_assignments[i].address.bytes.low);
-		printf("Testing 0x%02x%02x (%u/%u/%u)\n", cur->addr.bytes.high, cur->addr.bytes.low, cur->addr.ga.area, cur->addr.ga.line, cur->addr.ga.member);
+		//printf("Testing 0x%02x%02x (%u/%u/%u)\n", cur->addr.bytes.high, cur->addr.bytes.low, cur->addr.ga.area, cur->addr.ga.line, cur->addr.ga.member);
 		//if (cemi_data->destination.value == callback_assignments[i].address.value)
 		if (cur->addr.value == cemi_data->destination.value)
 	    {
-			printf("Found match\n");
+			//printf("Found match\n");
 			//if (callbacks[callback_assignments[i].callback_id].cond && !callbacks[callback_assignments[i].callback_id].cond())
 			for (int i = 0; i < cur->ignored_senders_len; ++i)
 			{
 				address_t a_cur = cur->ignored_senders[i];
 				if (a_cur.value == cemi_data->source.value)
 				{
-					printf("But it's disabled\n");
+					//printf("But it's disabled\n");
 					goto next;
 				}
 			}
@@ -465,11 +470,13 @@ int main(int argc, char *argv)
 		{
 			perror("recfrom: ");
 			break;
-		}		
+		}
+		/*
 		printf("Got %d bytes: ", rec);
 		for (ssize_t i = 0; i < rec; ++i)
 			printf("%02x ", buf[i]);
 		printf("\n");
+		*/
 		process_packet(buf, rec);
 	}
 
