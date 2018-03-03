@@ -483,9 +483,9 @@ int parse_config()
 
 error:
 	printf("JSON error: %s\n", error_ptr);
-	cJSON_Delete(json);
 	status = -1;
 end:
+	cJSON_Delete(json);
 	free(json_str);
 	return status;
 }
