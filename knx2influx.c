@@ -289,6 +289,12 @@ int parse_config()
 {
 	int status = 0;
 	FILE *f = fopen("knx2influx.json", "rb");
+	if (f == NULL)
+	{
+		printf("Could not find config file knx2influx.json!\n");
+		status = -1;
+		return status;
+	}
 	fseek(f, 0, SEEK_END);
 	uint64_t fsize = ftell(f);
 	fseek(f, 0, SEEK_SET);
