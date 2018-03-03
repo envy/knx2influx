@@ -99,102 +99,78 @@ void process_packet(uint8_t *buf, size_t len)
 {
 	knx_ip_pkt_t *knx_pkt = (knx_ip_pkt_t *)buf;
 
-	//printf("ST: 0x%02x\n", ntohs(knx_pkt->service_type));
-
 	if (knx_pkt->header_len != 0x06 && knx_pkt->protocol_version != 0x10 && knx_pkt->service_type != KNX_ST_ROUTING_INDICATION)
 		return;
 
 	cemi_msg_t *cemi_msg = (cemi_msg_t *)knx_pkt->pkt_data;
 
-	//printf("MT: 0x%02x\n", cemi_msg->message_code);
-
 	if (cemi_msg->message_code != KNX_MT_L_DATA_IND)
 		return;
-
-	//printf("ADDI: 0x%02x\n", cemi_msg->additional_info_len);
 
 	cemi_service_t *cemi_data = &cemi_msg->data.service_information;
 
 	if (cemi_msg->additional_info_len > 0)
 		cemi_data = (cemi_service_t *)(((uint8_t *)cemi_data) + cemi_msg->additional_info_len);
 
-	//printf("C1: 0x%02x   C2: 0x%02x   DT: 0x%02x\n", cemi_data->control_1.byte, cemi_data->control_2.byte, cemi_data->control_2.bits.dest_addr_type);
-
 	if (cemi_data->control_2.bits.dest_addr_type != 0x01)
 		return;
 
-	//printf("HC: 0x%02x   EFF: 0x%02x\n", cemi_data->control_2.bits.hop_count, cemi_data->control_2.bits.extended_frame_format);
-
-	//printf("Source: 0x%02x%02x (%u.%u.%u)\n", cemi_data->source.bytes.high, cemi_data->source.bytes.low, cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member);
-	//printf("Dest:   0x%02x%02x (%u/%u/%u)\n", cemi_data->destination.bytes.high, cemi_data->destination.bytes.low, cemi_data->destination.ga.area, cemi_data->destination.ga.line, cemi_data->destination.ga.member);
-
 	knx_command_type_t ct = (knx_command_type_t)(((cemi_data->data[0] & 0xC0) >> 6) | ((cemi_data->pci.apci & 0x03) << 2));
 
-	//printf("CT: 0x%02x\n", ct);
-
+	// Only accept writes
 	if (ct != KNX_CT_WRITE)
 		return;
 
-	/*
-	for (int i = 0; i < cemi_data->data_len; ++i)
-	{
-		printf(" 0x%02x", cemi_data->data[i]);
-	}
-	printf("\n==\n");
-	*/
-
-	// Call callbacks
-	//for (int i = 0; i < registered_callback_assignments; ++i)
 	ga_t *cur = config.gas;
 	while(cur != NULL)
 	{
-		//printf("Testing: 0x%02x%02x\n", callback_assignments[i].address.bytes.high, callback_assignments[i].address.bytes.low);
-		//printf("Testing 0x%02x%02x (%u/%u/%u)\n", cur->addr.bytes.high, cur->addr.bytes.low, cur->addr.ga.area, cur->addr.ga.line, cur->addr.ga.member);
-		//if (cemi_data->destination.value == callback_assignments[i].address.value)
 		if (cur->addr.value == cemi_data->destination.value)
-	    {
-			//printf("Found match\n");
-			//if (callbacks[callback_assignments[i].callback_id].cond && !callbacks[callback_assignments[i].callback_id].cond())
+		{
+			// Check if sender is blacklisted
 			for (int i = 0; i < cur->ignored_senders_len; ++i)
 			{
 				address_t a_cur = cur->ignored_senders[i];
 				if (a_cur.value == cemi_data->source.value)
 				{
-					//printf("But it's disabled\n");
 					goto next;
 				}
 			}
+
 			uint8_t data[cemi_data->data_len];
 			memcpy(data, cemi_data->data, cemi_data->data_len);
 			data[0] = data[0] & 0x3F;
-			message_t msg = {};
-			msg.ct = ct;
-			msg.received_on = cemi_data->destination;
-			msg.data_len = cemi_data->data_len;
-			msg.data = data;
 
 			char _post[1024];
 			memset(_post, 0, 1024);
 			strcat(_post, cur->series);
+
+			// Add tags
+			strcat(_post, ",sender=");
+			char sbuf[2+1+2+1+3+1];
+			snprintf(sbuf, 2+1+2+1+3+1, "%u.%u.%u", cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member);
+			strcat(_post, sbuf);
 			for (int i = 0; i < cur->tags_len; ++i)
 			{
 				strcat(_post, ",");
 				strcat(_post, cur->tags[i]);
 			}
-			
+
+			// Seperate tags from values
+			strcat(_post, " ");
+
 			switch (cur->dpt)
 			{
 				case 1:
 				{
 					bool val = data_to_bool(data);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, val ? "t" : "f");
 					break;
 				}
 				case 2:
 				{
 					bool val = data_to_bool(data);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, val ? "t" : "f");
 					uint8_t other_bit = data[0] >> 1;
 					bool control = data_to_bool(&other_bit);
@@ -207,7 +183,7 @@ void process_packet(uint8_t *buf, size_t len)
 					uint8_t val = data_to_1byte_uint(data);
 					char buf[4];
 					snprintf(buf, 4, "%u", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					strcat(_post, "i");
 					break;
@@ -217,7 +193,7 @@ void process_packet(uint8_t *buf, size_t len)
 					int8_t val = data_to_1byte_int(data);
 					char buf[5];
 					snprintf(buf, 5, "%d", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					strcat(_post, "i");
 					break;
@@ -227,7 +203,7 @@ void process_packet(uint8_t *buf, size_t len)
 					uint16_t val = data_to_2byte_uint(data);
 					char buf[6];
 					snprintf(buf, 6, "%u", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					strcat(_post, "i");
 					break;
@@ -237,7 +213,7 @@ void process_packet(uint8_t *buf, size_t len)
 					int16_t val = data_to_2byte_int(data);
 					char buf[7];
 					snprintf(buf, 7, "%d", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					strcat(_post, "i");
 					break;
@@ -247,7 +223,7 @@ void process_packet(uint8_t *buf, size_t len)
 					float val = data_to_2byte_float(data);
 					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
 					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					break;
 				}
@@ -256,7 +232,7 @@ void process_packet(uint8_t *buf, size_t len)
 					uint32_t val = data_to_4byte_uint(data);
 					char buf[11];
 					snprintf(buf, 11, "%u", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					strcat(_post, "i");
 					break;
@@ -266,7 +242,7 @@ void process_packet(uint8_t *buf, size_t len)
 					int32_t val = data_to_1byte_int(data);
 					char buf[12];
 					snprintf(buf, 12, "%d", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					strcat(_post, "i");
 					break;
@@ -276,7 +252,7 @@ void process_packet(uint8_t *buf, size_t len)
 					float val = data_to_4byte_float(data);
 					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
 					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", val);
-					strcat(_post, " value=");
+					strcat(_post, "value=");
 					strcat(_post, buf);
 					break;
 				}
@@ -288,13 +264,14 @@ void process_packet(uint8_t *buf, size_t len)
 next:
 		cur = cur->next;
 	}
-	//printf("\n");
 }
 
 
 int parse_config()
 {
 	int status = 0;
+
+	// Open config file
 	FILE *f = fopen("knx2influx.json", "rb");
 	if (f == NULL)
 	{
@@ -306,12 +283,14 @@ int parse_config()
 	uint64_t fsize = ftell(f);
 	fseek(f, 0, SEEK_SET);
 
+	// Read file
 	char *json_str = malloc(fsize + 1);
 	fread(json_str, fsize, 1, f);
 	fclose(f);
 	json_str[fsize] = '\0';
 
 	char *error_ptr;
+	// And parse
 	cJSON *json = cJSON_Parse(json_str);
 
 	if (json == NULL)
@@ -342,18 +321,17 @@ int parse_config()
 		goto error;
 	}
 	cJSON *user = cJSON_GetObjectItemCaseSensitive(json, "user");
-	if (cJSON_IsString(user) && (user->valuestring != NULL))
+	if (user && cJSON_IsString(user) && (user->valuestring != NULL))
 	{
 		config.database = strdup(user->valuestring);
 	}
 	cJSON *password = cJSON_GetObjectItemCaseSensitive(json, "password");
-	if (cJSON_IsString(password) && (password->valuestring != NULL))
+	if (password && cJSON_IsString(password) && (password->valuestring != NULL))
 	{
 		config.password = strdup(password->valuestring);
 	}
 
-	// GAs
-	
+	// GAs	
 	cJSON *gas = cJSON_GetObjectItemCaseSensitive(json, "gas");
 	if (!cJSON_IsArray(gas))
 	{
