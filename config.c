@@ -9,6 +9,137 @@
 #include "cJSON.h"
 #include "config.h"
 
+address_t *parse_ga(char *ga)
+{
+	char *string = strdup(ga);
+	char *tofree = string;
+	char *token;
+	uint8_t astart = 0, aend = 0;
+	uint8_t lstart = 0, lend = 0;
+	uint8_t mstart = 0, mend = 0;
+	uint16_t acount = 0, lcount = 0, mcount = 0;
+
+	char *area_s = strsep(&string, "/");
+	if (area_s == NULL)
+	{
+		printf("error parsing GA\n");
+		exit(EXIT_FAILURE);
+	}
+	char *line_s = strsep(&string, "/");
+	if (line_s == NULL)
+	{
+		printf("error parsing GA\n");
+		exit(EXIT_FAILURE);
+	}
+	char *member_s = strsep(&string, "/");
+
+	// Area
+	if (area_s[0] == '[')
+	{
+		// Range
+		char *start_s = strsep(&area_s, "-");
+		start_s++;
+		char *end_s = strsep(&area_s, "-");
+		end_s[strlen(end_s)-1] = '\0';
+		printf("%s - %s\n", start_s, end_s);
+		astart = strtol(start_s, NULL, 10);
+		aend = strtol(end_s, NULL, 10);
+		acount = mend - mstart + 1;
+	}
+	else if (area_s[0] == '*')
+	{
+		// Wildard
+		astart = 0;
+		aend = 31;
+		acount = 32;
+	}
+	else
+	{
+		astart = strtol(area_s, NULL, 10);
+		aend = astart;
+		acount = 1;
+	}
+
+	// Line
+	if (line_s[0] == '[')
+	{
+		// Range
+		char *start_s = strsep(&line_s, "-");
+		start_s++;
+		char *end_s = strsep(&line_s, "-");
+		end_s[strlen(end_s)-1] = '\0';
+		printf("%s - %s\n", start_s, end_s);
+		lstart = strtol(start_s, NULL, 10);
+		lend = strtol(end_s, NULL, 10);
+		lcount = mend - mstart + 1;
+	}
+	else if (line_s[0] == '*')
+	{
+		// Wildard
+		lstart = 0;
+		lend = 7;
+		lcount = 8;
+	}
+	else
+	{
+		lstart = strtol(line_s, NULL, 10);
+		lend = lstart;
+		lcount = 1;
+	}
+
+	// Member
+	if (member_s[0] == '[')
+	{
+		// Range
+		char *start_s = strsep(&member_s, "-");
+		start_s++;
+		char *end_s = strsep(&member_s, "-");
+		end_s[strlen(end_s)-1] = '\0';
+		printf("%s - %s\n", start_s, end_s);
+		mstart = strtol(start_s, NULL, 10);
+		mend = strtol(end_s, NULL, 10);
+		mcount = mend - mstart + 1;
+	}
+	else if (member_s[0] == '*')
+	{
+		// Wildard
+		mstart = 0;
+		mend = 255;
+		mcount = 256;
+	}
+	else
+	{
+		mstart = strtol(member_s, NULL, 10);
+		mend = mstart;
+		mcount = 1;
+	}
+
+	free(tofree);
+	// Allocate enough + 1 for end marker
+	address_t *addr = calloc(acount * lcount * mcount + 1, sizeof(address_t));
+
+	address_t *cur = addr;
+	for (uint16_t a = astart; a <= aend; ++a)
+		for (uint16_t l = lstart; l <= lend; ++l)
+			for (uint16_t m = mstart; m <= mend; ++m)
+			{
+				cur->ga.area = a;
+				cur->ga.line = l;
+				cur->ga.member = m;
+				cur++;
+			}
+
+	cur = addr;
+	while (cur->value != 0)
+	{
+		printf("%u/%u/%u\n", cur->ga.area, cur->ga.line, cur->ga.member);
+		cur++;
+	}
+
+	printf("----------\n");
+	return addr;
+}
+
 int parse_config(config_t *config)
 {
 	int status = 0;
@@ -179,12 +310,6 @@ int parse_config(config_t *config)
 		}
 		//printf("GA: %s", ga->valuestring);
 
-		uint32_t area, line, member;
-
-		sscanf(ga->valuestring, "%u/%u/%u", &area, &line, &member);
-
-		//printf(" -> %u/%u/%u\n", area, line, member);
-
 		cJSON *series = cJSON_GetObjectItemCaseSensitive(ga_obj, "series");
 		if (!cJSON_IsString(series))
 		{
@@ -220,31 +345,11 @@ int parse_config(config_t *config)
 			convert_dpt1_to_int = convert_to_int->type == cJSON_True ? 1 : 0;
 		}
 
+		ga_t _ga = {};
 
-
-		address_t ga_addr = {.ga={line, area, member}};
-		ga_t *_ga = calloc(1, sizeof(ga_t));
-
-		ga_t *entry = config->gas[ga_addr.value];
-
-		if (entry == NULL)
-		{
-			config->gas[ga_addr.value] = _ga;
-		}
-		else
-		{
-			while (entry->next != NULL)
-			{
-				entry = entry->next;
-			}
-
-			entry->next = _ga;
-		}
-
-		_ga->addr = ga_addr;
-		_ga->dpt = (uint8_t)dpt->valueint;
-		_ga->convert_dpt1_to_int = convert_dpt1_to_int;
-		_ga->series = strdup(series->valuestring);
+		_ga.dpt = (uint8_t)dpt->valueint;
+		_ga.convert_dpt1_to_int = convert_dpt1_to_int;
+		_ga.series = strdup(series->valuestring);
 
 		cJSON *ignored_senders = cJSON_GetObjectItemCaseSensitive(ga_obj, "ignored_senders");
 		if (ignored_senders)
@@ -254,8 +359,8 @@ int parse_config(config_t *config)
 				error_ptr = "'ignored_senders' is not an array!";
 				goto error;
 			}
-			_ga->ignored_senders_len = cJSON_GetArraySize(ignored_senders);
-			_ga->ignored_senders = calloc(_ga->ignored_senders_len, sizeof(address_t));
+			_ga.ignored_senders_len = cJSON_GetArraySize(ignored_senders);
+			_ga.ignored_senders = calloc(_ga.ignored_senders_len, sizeof(address_t));
 			int i = 0;
 			cJSON *ignored_sender = NULL;
 			cJSON_ArrayForEach(ignored_sender, ignored_senders)
@@ -272,9 +377,9 @@ int parse_config(config_t *config)
 				}
 				uint32_t area, line, member;
 				sscanf(ignored_sender->valuestring, "%u.%u.%u", &area, &line, &member);
-				_ga->ignored_senders[i].pa.area = area;
-				_ga->ignored_senders[i].pa.line = line;
-				_ga->ignored_senders[i].pa.member = member;
+				_ga.ignored_senders[i].pa.area = area;
+				_ga.ignored_senders[i].pa.line = line;
+				_ga.ignored_senders[i].pa.member = member;
 				++i;
 			}
 		}
@@ -287,8 +392,8 @@ int parse_config(config_t *config)
 				error_ptr = "'tags' is not an array!";
 				goto error;
 			}
-			_ga->tags_len = cJSON_GetArraySize(tags);
-			_ga->tags = calloc(_ga->tags_len, sizeof(char *));
+			_ga.tags_len = cJSON_GetArraySize(tags);
+			_ga.tags = calloc(_ga.tags_len, sizeof(char *));
 			int i = 0;
 			cJSON *tag = NULL;
 			cJSON_ArrayForEach(tag, tags)
@@ -303,15 +408,44 @@ int parse_config(config_t *config)
 					error_ptr = "Got empty string instead of a key=value pair in 'tags'";
 					goto error;
 				}
-				_ga->tags[i] = strdup(tag->valuestring);
+				_ga.tags[i] = strdup(tag->valuestring);
 				++i;
 			}
 		}
 		else
 		{
-			_ga->tags_len = 0;
-			_ga->tags = NULL;
+			_ga.tags_len = 0;
+			_ga.tags = NULL;
 		}
+
+		address_t *addrs = parse_ga(ga->valuestring);
+
+		address_t *ga_addr = addrs;
+		while (ga_addr->value != NULL)
+		{
+			ga_t *entry = config->gas[ga_addr->value];
+
+			ga_t *__ga = calloc(1, sizeof(ga_t));
+			memcpy(__ga, &_ga, sizeof(ga_t));
+
+			if (entry == NULL)
+			{
+				config->gas[ga_addr->value] = __ga;
+			}
+			else
+			{
+				while (entry->next != NULL)
+				{
+					entry = entry->next;
+				}
+
+				entry->next = __ga;
+			}
+
+			ga_addr++;
+		}
+
+		free(addrs);
 	}
 
 	goto end;
