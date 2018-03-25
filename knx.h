@@ -192,4 +192,26 @@ typedef struct __message
   uint8_t *data;
 } message_t;
 
+typedef struct __ga
+{
+  struct __ga *next;
+  address_t addr;
+  address_t *ignored_senders;
+  size_t ignored_senders_len;
+  char *series;
+  uint8_t dpt;
+  uint8_t convert_dpt1_to_int;
+  char **tags;
+  size_t tags_len;
+} ga_t;
+
+typedef struct __config
+{
+  char *host;
+  char *database;
+  char *user;
+  char *password;
+  ga_t *gas[UINT16_MAX];
+} config_t;
+
 #endif
