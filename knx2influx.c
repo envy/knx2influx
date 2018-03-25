@@ -214,18 +214,19 @@ void process_packet(uint8_t *buf, size_t len)
 	ga_t *entry = config.gas[cemi_data->destination.value];
 	while(entry != NULL)
 	{
+		uint8_t data[cemi_data->data_len];
+
 		// Check if sender is blacklisted
 		for (int i = 0; i < entry->ignored_senders_len; ++i)
 		{
 			address_t a_cur = entry->ignored_senders[i];
 			if (a_cur.value == cemi_data->source.value)
 			{
-				entry = entry->next;
-				continue;
+				goto next;
 			}
 		}
 
-		uint8_t data[cemi_data->data_len];
+
 		memcpy(data, cemi_data->data, cemi_data->data_len);
 		data[0] = data[0] & 0x3F;
 
@@ -264,6 +265,7 @@ void process_packet(uint8_t *buf, size_t len)
 		printf("%s\n", _post);
 		post(_post);
 
+next:
 		entry = entry->next;
 	}
 }
