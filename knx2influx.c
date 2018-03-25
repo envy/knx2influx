@@ -222,6 +222,7 @@ void process_packet(uint8_t *buf, size_t len)
 			address_t a_cur = entry->ignored_senders[i];
 			if (a_cur.value == cemi_data->source.value)
 			{
+				printf("Ignoring sender %u.%u.%u for %u/%u/%u\n", cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member, cemi_data->destination.ga.area, cemi_data->destination.ga.line, cemi_data->destination.ga.member);
 				goto next;
 			}
 		}
