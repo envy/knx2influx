@@ -37,7 +37,7 @@ int parse_config(config_t *config)
 	if (json == NULL)
 	{
 		error_ptr = (char *)cJSON_GetErrorPtr();
-		goto end;
+		goto error;
 	}
 
 	cJSON *host = cJSON_GetObjectItemCaseSensitive(json, "host");
@@ -72,7 +72,73 @@ int parse_config(config_t *config)
 		config->password = strdup(password->valuestring);
 	}
 
-	// GAs
+	// Sender tags
+	cJSON *sender_tags = cJSON_GetObjectItemCaseSensitive(json, "sender_tags");
+	// sender_tags is optional
+	if (sender_tags)
+	{
+		if (!cJSON_IsObject(sender_tags))
+		{
+			error_ptr = "Expected object, got something else for 'sender_tags'";
+			goto error;
+		}
+
+		cJSON *sender = NULL;
+		cJSON_ArrayForEach(sender, sender_tags)
+		{
+			uint32_t area, line, member;
+			sscanf(sender->string, "%u.%u.%u", &area, &line, &member);
+
+			address_t pa = {.pa = {line, area, member}};
+			sender_tags_t *_sender_tag = calloc(1, sizeof(sender_tags_t));
+
+			if (config->sender_tags[pa.value] == NULL)
+			{
+				config->sender_tags[pa.value] = _sender_tag;
+			}
+			else
+			{
+				sender_tags_t *entry = config->sender_tags[pa.value];
+				while (entry->next != NULL)
+					entry = entry->next;
+				entry->next = _sender_tag;
+			}
+
+			if (!cJSON_IsArray(sender))
+			{
+				error_ptr = "Expected array as value, got something else for entry in 'sender_tags'";
+				goto error;
+			}
+
+			_sender_tag->tags_len = cJSON_GetArraySize(sender);
+			_sender_tag->tags = calloc(_sender_tag->tags_len, sizeof(char *));
+			int i = 0;
+
+			cJSON *tag = NULL;
+			cJSON_ArrayForEach(tag, sender)
+			{
+				if (!cJSON_IsString(tag))
+				{
+					error_ptr = "Expected string for tag entry in 'sender_tags'";
+					goto error;
+				}
+				if (tag->valuestring == NULL)
+				{
+					error_ptr = "Got empty string instead of a tag entry in 'sender_tags'";
+					goto error;
+				}
+
+				_sender_tag->tags[i] = strdup(tag->valuestring);
+
+				++i;
+
+			}
+
+
+		}
+	}
+
+	// Group addresses
 	cJSON *gas = cJSON_GetObjectItemCaseSensitive(json, "gas");
 	if (!cJSON_IsArray(gas))
 	{
@@ -80,8 +146,6 @@ int parse_config(config_t *config)
 		goto error;
 	}
 	cJSON *ga_obj = NULL;
-
-	ga_t *prev_ga = NULL;
 
 	cJSON_ArrayForEach(ga_obj, gas)
 	{
@@ -169,7 +233,6 @@ int parse_config(config_t *config)
 		_ga->dpt = (uint8_t)dpt->valueint;
 		_ga->convert_dpt1_to_int = convert_dpt1_to_int;
 		_ga->series = strdup(series->valuestring);
-		prev_ga = _ga;
 
 		cJSON *ignored_senders = cJSON_GetObjectItemCaseSensitive(ga_obj, "ignored_senders");
 		if (ignored_senders)
@@ -231,6 +294,11 @@ int parse_config(config_t *config)
 				_ga->tags[i] = strdup(tag->valuestring);
 				++i;
 			}
+		}
+		else
+		{
+			_ga->tags_len = 0;
+			_ga->tags = NULL;
 		}
 	}
 

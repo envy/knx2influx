@@ -233,15 +233,27 @@ void process_packet(uint8_t *buf, size_t len)
 		memset(_post, 0, 1024);
 		strcat(_post, entry->series);
 
-		// Add tags
+		// Add tags, first the ones from the GA entries
 		strcat(_post, ",sender=");
 		char sbuf[2+1+2+1+3+1];
 		snprintf(sbuf, 2+1+2+1+3+1, "%u.%u.%u", cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member);
 		strcat(_post, sbuf);
-		for (int i = 0; i < entry->tags_len; ++i)
+		for (size_t i = 0; i < entry->tags_len; ++i)
 		{
 			strcat(_post, ",");
 			strcat(_post, entry->tags[i]);
+		}
+		// Now the sender tags
+		sender_tags_t *sender_tag = config.sender_tags[cemi_data->source.value];
+		while (sender_tag != NULL)
+		{
+			for (size_t i = 0; i < sender_tag->tags_len; ++i)
+			{
+				strcat(_post, ",");
+				strcat(_post, sender_tag->tags[i]);
+			}
+
+			sender_tag = sender_tag->next;
 		}
 
 		// Seperate tags from values
@@ -258,12 +270,51 @@ void process_packet(uint8_t *buf, size_t len)
 
 void print_config()
 {
+	// Sender tags
+	for (uint16_t i = 0; i < UINT16_MAX; ++i)
+	{
+		if (config.sender_tags[i] != NULL)
+		{
+			address_t a = {.value = i};
+			printf("%02u.%02u.%03u ", a.pa.area, a.pa.line, a.pa.member);
+			bool first = true;
+			sender_tags_t *entry = config.sender_tags[i];
+			while (entry != NULL)
+			{
+				if (first)
+				{
+					first = false;
+				}
+				else
+				{
+					printf("          ");
+				}
+				printf("+ [");
+				bool first_tag = true;
+				for (size_t i = 0; i < entry->tags_len; ++i)
+				{
+					if (first_tag)
+					{
+						first_tag = false;
+					}
+					else
+					{
+						printf(", ");
+					}
+					printf("%s", entry->tags[i]);
+				}
+				printf("]\n");
+				entry = entry->next;
+			}
+		}
+	}
+	printf("\n");
+	// Group addresses
 	for (uint16_t i = 0; i < UINT16_MAX; ++i)
 	{
 		if (config.gas[i] != NULL)
 		{
-			address_t a;
-			a.value = i;
+			address_t a = {.value = i};
 			printf("%02u/%02u/%03u ", a.ga.area, a.ga.line, a.ga.member);
 			ga_t *entry = config.gas[i];
 			bool first = true;
@@ -277,7 +328,24 @@ void print_config()
 				{
 					printf("          ");
 				}
-				printf("-> %s (%u%s)\n", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
+				printf("-> %s (%u%s) ", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
+
+				bool first_tag = true;
+				printf("[");
+				for (size_t i = 0; i < entry->tags_len; ++i)
+				{
+					if (first_tag)
+					{
+						first_tag = false;
+					}
+					else
+					{
+						printf(", ");
+					}
+					printf("%s", entry->tags[i]);
+				}
+				printf("]\n");
+
 				entry = entry->next;
 			}
 		}
@@ -288,15 +356,18 @@ void print_config()
 
 int main(int argc, char **argv)
 {
-	// Parse config first
+	// Init config
+	memset(&config, 0, sizeof(config_t));
 
+	// Parse config first
 	if (parse_config(&config) < 0)
 	{
+		printf("Error parsing JSON.\n");
 		exit(EXIT_FAILURE);
 	}
 
 	// Print config
-	print_config();
+	//print_config();
 
 	printf("Sending data to %s database %s\n", config.host, config.database);
 
