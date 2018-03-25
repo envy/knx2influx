@@ -23,7 +23,6 @@
 
 #define MULTICAST_PORT            3671 // [Default 3671]
 #define MULTICAST_IP              "224.0.23.12" // [Default IPAddress(224, 0, 23, 12)]
-#define INTERFACE_IP              "10.1.36.13"
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -409,7 +408,7 @@ int main(int argc, char **argv)
 	}
 
 	command.imr_multiaddr.s_addr = inet_addr(MULTICAST_IP);
-	command.imr_interface.s_addr = inet_addr(INTERFACE_IP);
+	command.imr_interface.s_addr = inet_addr(config.interface);
 
 	if (command.imr_multiaddr.s_addr == -1)
 	{

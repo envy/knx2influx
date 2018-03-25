@@ -41,6 +41,17 @@ int parse_config(config_t *config)
 		goto error;
 	}
 
+	cJSON *interface = cJSON_GetObjectItemCaseSensitive(json, "interface");
+	if (cJSON_IsString(interface) && (interface->valuestring != NULL))
+	{
+		config->interface = strdup(interface->valuestring);
+	}
+	else
+	{
+		error_ptr = "No interface given in config!";
+		goto error;
+	}
+
 	cJSON *host = cJSON_GetObjectItemCaseSensitive(json, "host");
 	if (cJSON_IsString(host) && (host->valuestring != NULL))
 	{

@@ -215,6 +215,7 @@ typedef struct __sender_tags
 
 typedef struct __config
 {
+  char *interface;
   char *host;
   char *database;
   char *user;
