@@ -278,7 +278,7 @@ void print_config()
 		if (config.sender_tags[i] != NULL)
 		{
 			address_t a = {.value = i};
-			printf("%02u.%02u.%03u ", a.pa.area, a.pa.line, a.pa.member);
+			printf("%2u.%2u.%3u ", a.pa.area, a.pa.line, a.pa.member);
 			bool first = true;
 			sender_tags_t *entry = config.sender_tags[i];
 			while (entry != NULL)
@@ -317,7 +317,7 @@ void print_config()
 		if (config.gas[i] != NULL)
 		{
 			address_t a = {.value = i};
-			printf("%02u/%02u/%03u ", a.ga.area, a.ga.line, a.ga.member);
+			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
 			ga_t *entry = config.gas[i];
 			bool first = true;
 			while (entry != NULL)
@@ -330,7 +330,7 @@ void print_config()
 				{
 					printf("          ");
 				}
-				printf("-> %s (%u%s) ", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
+				printf("-> %s (DPT %u%s) ", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
 
 				bool first_tag = true;
 				printf("[");
