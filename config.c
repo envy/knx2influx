@@ -437,23 +437,7 @@ int parse_config(config_t *config)
 		cJSON *sender = NULL;
 		cJSON_ArrayForEach(sender, sender_tags)
 		{
-			uint32_t area, line, member;
-			sscanf(sender->string, "%u.%u.%u", &area, &line, &member);
-
-			address_t pa = {.pa = {line, area, member}};
-			tags_t *_sender_tag = calloc(1, sizeof(tags_t));
-
-			if (config->sender_tags[pa.value] == NULL)
-			{
-				config->sender_tags[pa.value] = _sender_tag;
-			}
-			else
-			{
-				tags_t *entry = config->sender_tags[pa.value];
-				while (entry->next != NULL)
-					entry = entry->next;
-				entry->next = _sender_tag;
-			}
+			tags_t _sender_tag = {};
 
 			if (!cJSON_IsArray(sender))
 			{
@@ -461,8 +445,8 @@ int parse_config(config_t *config)
 				goto error;
 			}
 
-			_sender_tag->tags_len = cJSON_GetArraySize(sender);
-			_sender_tag->tags = calloc(_sender_tag->tags_len, sizeof(char *));
+			_sender_tag.tags_len = cJSON_GetArraySize(sender);
+			_sender_tag.tags = calloc(_sender_tag.tags_len, sizeof(char *));
 			int i = 0;
 
 			cJSON *tag = NULL;
@@ -479,13 +463,35 @@ int parse_config(config_t *config)
 					goto error;
 				}
 
-				_sender_tag->tags[i] = strdup(tag->valuestring);
+				_sender_tag.tags[i] = strdup(tag->valuestring);
 
 				++i;
 
 			}
 
+			address_t *addrs = parse_pa(sender->string);
 
+			address_t *cur = addrs;
+			while (cur->value != 0)
+			{
+				tags_t *__sender_tag = calloc(1, sizeof(tags_t));
+				memcpy(__sender_tag, &_sender_tag, sizeof(tags_t));
+
+				if (config->sender_tags[cur->value] == NULL)
+				{
+					config->sender_tags[cur->value] = __sender_tag;
+				}
+				else
+				{
+					tags_t *entry = config->sender_tags[cur->value];
+					while (entry->next != NULL)
+						entry = entry->next;
+					entry->next = __sender_tag;
+				}
+				cur++;
+			}
+			//printf("free: %p\n", addrs);
+			free(addrs);
 		}
 	}
 

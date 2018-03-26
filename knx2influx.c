@@ -334,6 +334,7 @@ int main(int argc, char **argv)
 				cd->destination = ga[0];
 				cd->data_len = 1;
 				cd->data[0] = 0;
+				printf("Triggers for %u/%u/%u send by %u.%u.%u\n", ga[0].ga.area, ga[0].ga.line, ga[0].ga.member, sender[0].pa.area, sender[0].pa.line, sender[0].pa.member);
 				find_triggers(cd);
 				free(cd);
 				free(sender);
