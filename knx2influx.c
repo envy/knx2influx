@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <math.h>
 #include <float.h>
+#include <pthread.h>
 
 #include <curl/curl.h>
 
@@ -30,6 +31,7 @@
 static config_t config;
 static int socket_fd;
 static struct ip_mreq command = {};
+static struct sockaddr_in _sin = {};
 
 void exithandler()
 {
@@ -287,8 +289,34 @@ void process_packet(uint8_t *buf, size_t len)
 	// Only accept writes
 	if (ct == KNX_CT_WRITE || ct == KNX_CT_ANSWER)
 		find_triggers(cemi_data);
+}
 
+void *read_thread(void *unused)
+{
+	(void)unused;
 
+	uint8_t *buf = calloc(512, sizeof(uint8_t));
+	ssize_t rec = 0;
+
+	while(1)
+	{
+		int sin_len = sizeof(_sin);
+		if ((rec = recvfrom(socket_fd, buf, 512, 0, (struct sockaddr *) &_sin, &sin_len)) == -1)
+		{
+			perror("recfrom: ");
+			break;
+		}
+		/*
+		printf("Got %d bytes: ", rec);
+		for (ssize_t i = 0; i < rec; ++i)
+			printf("%02x ", buf[i]);
+		printf("\n");
+		*/
+		process_packet(buf, rec);
+		memset(buf, 0, 512);
+	}
+
+	return NULL;
 }
 
 void send_knx_packet(address_t receiver, knx_command_type_t ct, uint8_t data_len, uint8_t *data)
@@ -395,10 +423,9 @@ int main(int argc, char **argv)
 
 	printf("Sending data to %s database %s\n", config.host, config.database);
 
-	struct sockaddr_in sin = {};
-	sin.sin_family = PF_INET;
-	sin.sin_addr.s_addr = INADDR_ANY;
-	sin.sin_port = htons(MULTICAST_PORT);
+	_sin.sin_family = PF_INET;
+	_sin.sin_addr.s_addr = INADDR_ANY;
+	_sin.sin_port = htons(MULTICAST_PORT);
 	if ((socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	{
 		perror("socket: ");
@@ -414,7 +441,7 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (bind(socket_fd, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+	if (bind(socket_fd, (struct sockaddr *)&_sin, sizeof(_sin)) < 0)
 	{
 		perror("bind: ");
 		close(socket_fd);
@@ -448,6 +475,9 @@ int main(int argc, char **argv)
 
 	atexit(exithandler);
 
+	pthread_t read_thread_id;
+	pthread_create(&read_thread_id, NULL, read_thread, NULL);
+
 	for (uint16_t a; a < UINT16_MAX; ++a)
 	{
 		address_t addr = { .value = a };
@@ -463,25 +493,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	uint8_t buf[512];
-	ssize_t rec = 0;
-
-	while(1)
-	{
-		int sin_len = sizeof(sin);
-		if ((rec = recvfrom(socket_fd, buf, 512, 0, (struct sockaddr *) &sin, &sin_len)) == -1)
-		{
-			perror("recfrom: ");
-			break;
-		}
-		/*
-		printf("Got %d bytes: ", rec);
-		for (ssize_t i = 0; i < rec; ++i)
-			printf("%02x ", buf[i]);
-		printf("\n");
-		*/
-		process_packet(buf, rec);
-	}
+	pthread_join(read_thread_id, NULL);
 
 	return 0;
 }
