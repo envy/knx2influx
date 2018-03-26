@@ -5,9 +5,22 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <string.h>
+#include <errno.h>
 
 #include "cJSON.h"
 #include "config.h"
+
+long safe_strtol(char const *str, char **endptr, int base)
+{
+	errno = 0;
+	long val = strtol(str, endptr, base);
+	if (errno != 0)
+	{
+		printf("error parsing value in GA\n");
+		exit(EXIT_FAILURE);
+	}
+	return val;
+}
 
 address_t *parse_ga(char *ga)
 {
@@ -22,28 +35,43 @@ address_t *parse_ga(char *ga)
 	char *area_s = strsep(&string, "/");
 	if (area_s == NULL)
 	{
-		printf("error parsing GA\n");
+		printf("error parsing GA (area)\n");
 		exit(EXIT_FAILURE);
 	}
 	char *line_s = strsep(&string, "/");
 	if (line_s == NULL)
 	{
-		printf("error parsing GA\n");
+		printf("error parsing GA (line)\n");
 		exit(EXIT_FAILURE);
 	}
 	char *member_s = strsep(&string, "/");
+	if (member_s == NULL)
+	{
+		printf("error parsing GA (member)\n");
+		exit(EXIT_FAILURE);
+	}
 
 	// Area
 	if (area_s[0] == '[')
 	{
 		// Range
 		char *start_s = strsep(&area_s, "-");
+		if (start_s == NULL)
+		{
+			printf("error parsing range GA (start)\n");
+			exit(EXIT_FAILURE);
+		}
 		start_s++;
 		char *end_s = strsep(&area_s, "-");
+		if (end_s == NULL)
+		{
+			printf("error parsing range GA (start)\n");
+			exit(EXIT_FAILURE);
+		}
 		end_s[strlen(end_s)-1] = '\0';
 		printf("%s - %s\n", start_s, end_s);
-		astart = strtol(start_s, NULL, 10);
-		aend = strtol(end_s, NULL, 10);
+		astart = safe_strtol(start_s, NULL, 10);
+		aend = safe_strtol(end_s, NULL, 10);
 		acount = mend - mstart + 1;
 	}
 	else if (area_s[0] == '*')
@@ -55,7 +83,7 @@ address_t *parse_ga(char *ga)
 	}
 	else
 	{
-		astart = strtol(area_s, NULL, 10);
+		astart = safe_strtol(area_s, NULL, 10);
 		aend = astart;
 		acount = 1;
 	}
@@ -65,12 +93,22 @@ address_t *parse_ga(char *ga)
 	{
 		// Range
 		char *start_s = strsep(&line_s, "-");
+		if (start_s == NULL)
+		{
+			printf("error parsing range GA (start)\n");
+			exit(EXIT_FAILURE);
+		}
 		start_s++;
 		char *end_s = strsep(&line_s, "-");
+		if (end_s == NULL)
+		{
+			printf("error parsing range GA (start)\n");
+			exit(EXIT_FAILURE);
+		}
 		end_s[strlen(end_s)-1] = '\0';
 		printf("%s - %s\n", start_s, end_s);
-		lstart = strtol(start_s, NULL, 10);
-		lend = strtol(end_s, NULL, 10);
+		lstart = safe_strtol(start_s, NULL, 10);
+		lend = safe_strtol(end_s, NULL, 10);
 		lcount = mend - mstart + 1;
 	}
 	else if (line_s[0] == '*')
@@ -82,7 +120,7 @@ address_t *parse_ga(char *ga)
 	}
 	else
 	{
-		lstart = strtol(line_s, NULL, 10);
+		lstart = safe_strtol(line_s, NULL, 10);
 		lend = lstart;
 		lcount = 1;
 	}
@@ -92,12 +130,22 @@ address_t *parse_ga(char *ga)
 	{
 		// Range
 		char *start_s = strsep(&member_s, "-");
+		if (start_s == NULL)
+		{
+			printf("error parsing range GA (start)\n");
+			exit(EXIT_FAILURE);
+		}
 		start_s++;
 		char *end_s = strsep(&member_s, "-");
+		if (end_s == NULL)
+		{
+			printf("error parsing range GA (start)\n");
+			exit(EXIT_FAILURE);
+		}
 		end_s[strlen(end_s)-1] = '\0';
 		printf("%s - %s\n", start_s, end_s);
-		mstart = strtol(start_s, NULL, 10);
-		mend = strtol(end_s, NULL, 10);
+		mstart = safe_strtol(start_s, NULL, 10);
+		mend = safe_strtol(end_s, NULL, 10);
 		mcount = mend - mstart + 1;
 	}
 	else if (member_s[0] == '*')
@@ -109,7 +157,7 @@ address_t *parse_ga(char *ga)
 	}
 	else
 	{
-		mstart = strtol(member_s, NULL, 10);
+		mstart = safe_strtol(member_s, NULL, 10);
 		mend = mstart;
 		mcount = 1;
 	}
@@ -421,7 +469,7 @@ int parse_config(config_t *config)
 		address_t *addrs = parse_ga(ga->valuestring);
 
 		address_t *ga_addr = addrs;
-		while (ga_addr->value != NULL)
+		while (ga_addr->value != 0)
 		{
 			ga_t *entry = config->gas[ga_addr->value];
 
