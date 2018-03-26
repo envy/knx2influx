@@ -10,6 +10,133 @@
 #include "cJSON.h"
 #include "config.h"
 
+void print_config(config_t *config)
+{
+	// Sender tags
+	for (uint16_t i = 0; i < UINT16_MAX; ++i)
+	{
+		if (config->sender_tags[i] != NULL)
+		{
+			address_t a = {.value = i};
+			printf("%2u.%2u.%3u ", a.pa.area, a.pa.line, a.pa.member);
+			bool first = true;
+			tags_t *entry = config->sender_tags[i];
+			while (entry != NULL)
+			{
+				if (first)
+				{
+					first = false;
+				}
+				else
+				{
+					printf("          ");
+				}
+				printf("+ [");
+				bool first_tag = true;
+				for (size_t i = 0; i < entry->tags_len; ++i)
+				{
+					if (first_tag)
+					{
+						first_tag = false;
+					}
+					else
+					{
+						printf(", ");
+					}
+					printf("%s", entry->tags[i]);
+				}
+				printf("]\n");
+				entry = entry->next;
+			}
+		}
+	}
+	printf("\n");
+
+	// GA tags
+	for (uint16_t i = 0; i < UINT16_MAX; ++i)
+	{
+		if (config->ga_tags[i] != NULL)
+		{
+			address_t a = {.value = i};
+			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
+			bool first = true;
+			tags_t *entry = config->ga_tags[i];
+			while (entry != NULL)
+			{
+				if (first)
+				{
+					first = false;
+				}
+				else
+				{
+					printf("          ");
+				}
+				printf("+ [");
+				bool first_tag = true;
+				for (size_t i = 0; i < entry->tags_len; ++i)
+				{
+					if (first_tag)
+					{
+						first_tag = false;
+					}
+					else
+					{
+						printf(", ");
+					}
+					printf("%s", entry->tags[i]);
+				}
+				printf("]\n");
+				entry = entry->next;
+			}
+		}
+	}
+	printf("\n");
+
+	// Group addresses
+	for (uint16_t i = 0; i < UINT16_MAX; ++i)
+	{
+		if (config->gas[i] != NULL)
+		{
+			address_t a = {.value = i};
+			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
+			ga_t *entry = config->gas[i];
+			bool first = true;
+			while (entry != NULL)
+			{
+				if (first)
+				{
+					first = false;
+				}
+				else
+				{
+					printf("          ");
+				}
+				printf("-> %s (DPT %u%s) ", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
+
+				bool first_tag = true;
+				printf("[");
+				for (size_t i = 0; i < entry->tags_len; ++i)
+				{
+					if (first_tag)
+					{
+						first_tag = false;
+					}
+					else
+					{
+						printf(", ");
+					}
+					printf("%s", entry->tags[i]);
+				}
+				printf("]\n");
+
+				entry = entry->next;
+			}
+		}
+	}
+
+	exit(0);
+}
+
 long safe_strtol(char const *str, char **endptr, int base)
 {
 	errno = 0;
@@ -22,9 +149,39 @@ long safe_strtol(char const *str, char **endptr, int base)
 	return val;
 }
 
+address_t *parse_pa(char *pa)
+{
+	// printf("parsing %s\n", pa);
+	address_t *addrs = parse_addr(pa, ".", 15, 15);
+	// address_t *cur = addrs;
+	// while (cur->value != 0)
+	// {
+	// 	printf("%u.%u.%u\n", cur->pa.area, cur->pa.line, cur->pa.member);
+	// 	cur++;
+	// }
+
+	// printf("----------\n");
+	return addrs;
+}
+
 address_t *parse_ga(char *ga)
 {
-	char *string = strdup(ga);
+	// printf("parsing %s\n", ga);
+	address_t *addrs = parse_addr(ga, "/", 31, 7);
+	// address_t *cur = addrs;
+	// while (cur->value != 0)
+	// {
+	// 	printf("%u/%u/%u\n", cur->ga.area, cur->ga.line, cur->ga.member);
+	// 	cur++;
+	// }
+
+	// printf("----------\n");
+	return addrs;
+}
+
+address_t *parse_addr(char *addr_s, char *sep, uint8_t area_max, uint8_t line_max)
+{
+	char *string = strdup(addr_s);
 	char *tofree = string;
 	char *token;
 	uint8_t astart = 0, aend = 0;
@@ -32,22 +189,22 @@ address_t *parse_ga(char *ga)
 	uint8_t mstart = 0, mend = 0;
 	uint16_t acount = 0, lcount = 0, mcount = 0;
 
-	char *area_s = strsep(&string, "/");
+	char *area_s = strsep(&string, sep);
 	if (area_s == NULL)
 	{
-		printf("error parsing GA (area)\n");
+		printf("error parsing addr (area)\n");
 		exit(EXIT_FAILURE);
 	}
-	char *line_s = strsep(&string, "/");
+	char *line_s = strsep(&string, sep);
 	if (line_s == NULL)
 	{
-		printf("error parsing GA (line)\n");
+		printf("error parsing addr (line)\n");
 		exit(EXIT_FAILURE);
 	}
-	char *member_s = strsep(&string, "/");
+	char *member_s = strsep(&string, sep);
 	if (member_s == NULL)
 	{
-		printf("error parsing GA (member)\n");
+		printf("error parsing addr (member)\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -58,28 +215,28 @@ address_t *parse_ga(char *ga)
 		char *start_s = strsep(&area_s, "-");
 		if (start_s == NULL)
 		{
-			printf("error parsing range GA (start)\n");
+			printf("error parsing range addr (start)\n");
 			exit(EXIT_FAILURE);
 		}
 		start_s++;
 		char *end_s = strsep(&area_s, "-");
 		if (end_s == NULL)
 		{
-			printf("error parsing range GA (start)\n");
+			printf("error parsing range addr (start)\n");
 			exit(EXIT_FAILURE);
 		}
 		end_s[strlen(end_s)-1] = '\0';
-		printf("%s - %s\n", start_s, end_s);
+		//printf("%s - %s\n", start_s, end_s);
 		astart = safe_strtol(start_s, NULL, 10);
 		aend = safe_strtol(end_s, NULL, 10);
-		acount = mend - mstart + 1;
+		acount = aend - astart + 1;
 	}
 	else if (area_s[0] == '*')
 	{
 		// Wildard
 		astart = 0;
-		aend = 31;
-		acount = 32;
+		aend = area_max;
+		acount = area_max + 1;
 	}
 	else
 	{
@@ -95,28 +252,28 @@ address_t *parse_ga(char *ga)
 		char *start_s = strsep(&line_s, "-");
 		if (start_s == NULL)
 		{
-			printf("error parsing range GA (start)\n");
+			printf("error parsing range addr (start)\n");
 			exit(EXIT_FAILURE);
 		}
 		start_s++;
 		char *end_s = strsep(&line_s, "-");
 		if (end_s == NULL)
 		{
-			printf("error parsing range GA (start)\n");
+			printf("error parsing range addr (start)\n");
 			exit(EXIT_FAILURE);
 		}
 		end_s[strlen(end_s)-1] = '\0';
-		printf("%s - %s\n", start_s, end_s);
+		//printf("%s - %s\n", start_s, end_s);
 		lstart = safe_strtol(start_s, NULL, 10);
 		lend = safe_strtol(end_s, NULL, 10);
-		lcount = mend - mstart + 1;
+		lcount = lend - lstart + 1;
 	}
 	else if (line_s[0] == '*')
 	{
 		// Wildard
 		lstart = 0;
-		lend = 7;
-		lcount = 8;
+		lend = line_max;
+		lcount = line_max + 1;
 	}
 	else
 	{
@@ -132,18 +289,18 @@ address_t *parse_ga(char *ga)
 		char *start_s = strsep(&member_s, "-");
 		if (start_s == NULL)
 		{
-			printf("error parsing range GA (start)\n");
+			printf("error parsing range addr (start)\n");
 			exit(EXIT_FAILURE);
 		}
 		start_s++;
 		char *end_s = strsep(&member_s, "-");
 		if (end_s == NULL)
 		{
-			printf("error parsing range GA (start)\n");
+			printf("error parsing range addr (start)\n");
 			exit(EXIT_FAILURE);
 		}
 		end_s[strlen(end_s)-1] = '\0';
-		printf("%s - %s\n", start_s, end_s);
+		//printf("%s - %s\n", start_s, end_s);
 		mstart = safe_strtol(start_s, NULL, 10);
 		mend = safe_strtol(end_s, NULL, 10);
 		mcount = mend - mstart + 1;
@@ -165,26 +322,29 @@ address_t *parse_ga(char *ga)
 	free(tofree);
 	// Allocate enough + 1 for end marker
 	address_t *addr = calloc(acount * lcount * mcount + 1, sizeof(address_t));
-
+	//printf("alloc: %p\n", addr);
 	address_t *cur = addr;
 	for (uint16_t a = astart; a <= aend; ++a)
 		for (uint16_t l = lstart; l <= lend; ++l)
 			for (uint16_t m = mstart; m <= mend; ++m)
 			{
-				cur->ga.area = a;
-				cur->ga.line = l;
-				cur->ga.member = m;
+				// Hacky
+				if (line_max == 7)
+				{
+					cur->ga.area = a;
+					cur->ga.line = l;
+					cur->ga.member = m;
+				}
+				else
+				{
+					cur->pa.area = a;
+					cur->pa.line = l;
+					cur->pa.member = m;
+				}
+
 				cur++;
 			}
 
-	cur = addr;
-	while (cur->value != 0)
-	{
-		printf("%u/%u/%u\n", cur->ga.area, cur->ga.line, cur->ga.member);
-		cur++;
-	}
-
-	printf("----------\n");
 	return addr;
 }
 
@@ -281,7 +441,7 @@ int parse_config(config_t *config)
 			sscanf(sender->string, "%u.%u.%u", &area, &line, &member);
 
 			address_t pa = {.pa = {line, area, member}};
-			sender_tags_t *_sender_tag = calloc(1, sizeof(sender_tags_t));
+			tags_t *_sender_tag = calloc(1, sizeof(tags_t));
 
 			if (config->sender_tags[pa.value] == NULL)
 			{
@@ -289,7 +449,7 @@ int parse_config(config_t *config)
 			}
 			else
 			{
-				sender_tags_t *entry = config->sender_tags[pa.value];
+				tags_t *entry = config->sender_tags[pa.value];
 				while (entry->next != NULL)
 					entry = entry->next;
 				entry->next = _sender_tag;
@@ -326,6 +486,77 @@ int parse_config(config_t *config)
 			}
 
 
+		}
+	}
+
+	// Group address tags
+	cJSON *ga_tags = cJSON_GetObjectItemCaseSensitive(json, "ga_tags");
+	// ga_tags is optional
+	if (ga_tags)
+	{
+		if (!cJSON_IsObject(ga_tags))
+		{
+			error_ptr = "Expected object, got something else for 'ga_tags'";
+			goto error;
+		}
+
+		cJSON *ga = NULL;
+		cJSON_ArrayForEach(ga, ga_tags)
+		{
+			tags_t _ga_tag = {};
+
+			if (!cJSON_IsArray(ga))
+			{
+				error_ptr = "Expected array as value, got something else for entry in 'sender_tags'";
+				goto error;
+			}
+
+			_ga_tag.tags_len = cJSON_GetArraySize(ga);
+			_ga_tag.tags = calloc(_ga_tag.tags_len, sizeof(char *));
+			int i = 0;
+
+			cJSON *tag = NULL;
+			cJSON_ArrayForEach(tag, ga)
+			{
+				if (!cJSON_IsString(tag))
+				{
+					error_ptr = "Expected string for tag entry in 'sender_tags'";
+					goto error;
+				}
+				if (tag->valuestring == NULL)
+				{
+					error_ptr = "Got empty string instead of a tag entry in 'sender_tags'";
+					goto error;
+				}
+
+				_ga_tag.tags[i] = strdup(tag->valuestring);
+
+				++i;
+			}
+
+			address_t *addrs = parse_ga(ga->string);
+
+			address_t *cur = addrs;
+			while (cur->value != 0)
+			{
+				tags_t *__ga_tag = calloc(1, sizeof(tags_t));
+				memcpy(__ga_tag, &_ga_tag, sizeof(tags_t));
+
+				if (config->ga_tags[cur->value] == NULL)
+				{
+					config->ga_tags[cur->value] = __ga_tag;
+				}
+				else
+				{
+					tags_t *entry = config->ga_tags[cur->value];
+					while (entry->next != NULL)
+						entry = entry->next;
+					entry->next = __ga_tag;
+				}
+				cur++;
+			}
+			//printf("free: %p\n", addrs);
+			free(addrs);
 		}
 	}
 
@@ -492,7 +723,7 @@ int parse_config(config_t *config)
 
 			ga_addr++;
 		}
-
+		//printf("free: %p\n", addrs);
 		free(addrs);
 	}
 

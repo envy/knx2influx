@@ -205,13 +205,13 @@ typedef struct __ga
   size_t tags_len;
 } ga_t;
 
-typedef struct __sender_tags
+typedef struct __tags
 {
-  struct __sender_tags *next;
+  struct __tags *next;
   address_t addr;
   char **tags;
   size_t tags_len;
-} sender_tags_t;
+} tags_t;
 
 typedef struct __config
 {
@@ -221,7 +221,8 @@ typedef struct __config
   char *user;
   char *password;
   ga_t *gas[UINT16_MAX];
-  sender_tags_t *sender_tags[UINT16_MAX];
+  tags_t *sender_tags[UINT16_MAX];
+  tags_t *ga_tags[UINT16_MAX];
 } config_t;
 
 #endif

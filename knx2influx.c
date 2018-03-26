@@ -181,7 +181,85 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 			break;
 		}
 	}
+}
 
+void construct_request(char *buf, ga_t *entry, address_t sender, address_t ga, uint8_t *data)
+{
+	strcat(buf, entry->series);
+	// Add tags, first the ones from the GA entries
+	strcat(buf, ",sender=");
+	char sbuf[2+1+2+1+3+1];
+	snprintf(sbuf, 2+1+2+1+3+1, "%u.%u.%u", sender.pa.area, sender.pa.line, sender.pa.member);
+	strcat(buf, sbuf);
+	for (size_t i = 0; i < entry->tags_len; ++i)
+	{
+		strcat(buf, ",");
+		strcat(buf, entry->tags[i]);
+	}
+	// Now the sender tags
+	tags_t *sender_tag = config.sender_tags[sender.value];
+	while (sender_tag != NULL)
+	{
+		for (size_t i = 0; i < sender_tag->tags_len; ++i)
+		{
+			strcat(buf, ",");
+			strcat(buf, sender_tag->tags[i]);
+		}
+
+		sender_tag = sender_tag->next;
+	}
+	// And the GA tags
+	tags_t *ga_tag = config.ga_tags[ga.value];
+	while (ga_tag != NULL)
+	{
+		for (size_t i = 0; i < ga_tag->tags_len; ++i)
+		{
+			strcat(buf, ",");
+			strcat(buf, ga_tag->tags[i]);
+		}
+
+		ga_tag = ga_tag->next;
+	}
+
+	// Seperate tags from values
+	strcat(buf, " ");
+
+	format_dpt(entry, buf, data);
+}
+
+void find_triggers(cemi_service_t *cemi_data)
+{
+	ga_t *entry = config.gas[cemi_data->destination.value];
+	while(entry != NULL)
+	{
+		uint8_t data[cemi_data->data_len];
+
+		// Check if sender is blacklisted
+		for (int i = 0; i < entry->ignored_senders_len; ++i)
+		{
+			address_t a_cur = entry->ignored_senders[i];
+			if (a_cur.value == cemi_data->source.value)
+			{
+				printf("Ignoring sender %u.%u.%u for %u/%u/%u\n", cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member, cemi_data->destination.ga.area, cemi_data->destination.ga.line, cemi_data->destination.ga.member);
+				goto next;
+			}
+		}
+
+
+		memcpy(data, cemi_data->data, cemi_data->data_len);
+		data[0] = data[0] & 0x3F;
+
+		char _post[1024];
+		memset(_post, 0, 1024);
+
+		construct_request(_post, entry, cemi_data->source, cemi_data->destination, data);
+
+		printf("%s\n", _post);
+		post(_post);
+
+next:
+		entry = entry->next;
+	}
 }
 
 void process_packet(uint8_t *buf, size_t len)
@@ -210,150 +288,7 @@ void process_packet(uint8_t *buf, size_t len)
 	if (ct != KNX_CT_WRITE)
 		return;
 
-	ga_t *entry = config.gas[cemi_data->destination.value];
-	while(entry != NULL)
-	{
-		uint8_t data[cemi_data->data_len];
-
-		// Check if sender is blacklisted
-		for (int i = 0; i < entry->ignored_senders_len; ++i)
-		{
-			address_t a_cur = entry->ignored_senders[i];
-			if (a_cur.value == cemi_data->source.value)
-			{
-				printf("Ignoring sender %u.%u.%u for %u/%u/%u\n", cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member, cemi_data->destination.ga.area, cemi_data->destination.ga.line, cemi_data->destination.ga.member);
-				goto next;
-			}
-		}
-
-
-		memcpy(data, cemi_data->data, cemi_data->data_len);
-		data[0] = data[0] & 0x3F;
-
-		char _post[1024];
-		memset(_post, 0, 1024);
-		strcat(_post, entry->series);
-
-		// Add tags, first the ones from the GA entries
-		strcat(_post, ",sender=");
-		char sbuf[2+1+2+1+3+1];
-		snprintf(sbuf, 2+1+2+1+3+1, "%u.%u.%u", cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member);
-		strcat(_post, sbuf);
-		for (size_t i = 0; i < entry->tags_len; ++i)
-		{
-			strcat(_post, ",");
-			strcat(_post, entry->tags[i]);
-		}
-		// Now the sender tags
-		sender_tags_t *sender_tag = config.sender_tags[cemi_data->source.value];
-		while (sender_tag != NULL)
-		{
-			for (size_t i = 0; i < sender_tag->tags_len; ++i)
-			{
-				strcat(_post, ",");
-				strcat(_post, sender_tag->tags[i]);
-			}
-
-			sender_tag = sender_tag->next;
-		}
-
-		// Seperate tags from values
-		strcat(_post, " ");
-
-		format_dpt(entry, _post, data);
-
-		printf("%s\n", _post);
-		post(_post);
-
-next:
-		entry = entry->next;
-	}
-}
-
-void print_config()
-{
-	// Sender tags
-	for (uint16_t i = 0; i < UINT16_MAX; ++i)
-	{
-		if (config.sender_tags[i] != NULL)
-		{
-			address_t a = {.value = i};
-			printf("%2u.%2u.%3u ", a.pa.area, a.pa.line, a.pa.member);
-			bool first = true;
-			sender_tags_t *entry = config.sender_tags[i];
-			while (entry != NULL)
-			{
-				if (first)
-				{
-					first = false;
-				}
-				else
-				{
-					printf("          ");
-				}
-				printf("+ [");
-				bool first_tag = true;
-				for (size_t i = 0; i < entry->tags_len; ++i)
-				{
-					if (first_tag)
-					{
-						first_tag = false;
-					}
-					else
-					{
-						printf(", ");
-					}
-					printf("%s", entry->tags[i]);
-				}
-				printf("]\n");
-				entry = entry->next;
-			}
-		}
-	}
-	printf("\n");
-	// Group addresses
-	for (uint16_t i = 0; i < UINT16_MAX; ++i)
-	{
-		if (config.gas[i] != NULL)
-		{
-			address_t a = {.value = i};
-			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
-			ga_t *entry = config.gas[i];
-			bool first = true;
-			while (entry != NULL)
-			{
-				if (first)
-				{
-					first = false;
-				}
-				else
-				{
-					printf("          ");
-				}
-				printf("-> %s (DPT %u%s) ", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
-
-				bool first_tag = true;
-				printf("[");
-				for (size_t i = 0; i < entry->tags_len; ++i)
-				{
-					if (first_tag)
-					{
-						first_tag = false;
-					}
-					else
-					{
-						printf(", ");
-					}
-					printf("%s", entry->tags[i]);
-				}
-				printf("]\n");
-
-				entry = entry->next;
-			}
-		}
-	}
-
-	exit(0);
+	find_triggers(cemi_data);
 }
 
 int main(int argc, char **argv)
@@ -368,8 +303,52 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	// Print config
-	//print_config();
+	int bflag, ch, fd;
+
+	bflag = 0;
+	while ((ch = getopt(argc, argv, "pd:")) != -1) {
+		switch (ch) {
+			case 'p':
+				print_config(&config);
+				break;
+			case 'd':
+			{
+				char *sender_ga = strdup(optarg);
+				char *tofree = sender_ga;
+				char *sender_s = strsep(&sender_ga, "-");
+				if (sender_s == NULL)
+				{
+					printf("error parsing PA-GA pair\n");
+					exit(EXIT_FAILURE);
+				}
+				char *ga_s = strsep(&sender_ga, "-");
+				if (ga_s == NULL)
+				{
+					printf("error parsing PA-GA pair\n");
+					exit(EXIT_FAILURE);
+				}
+				address_t *sender = parse_pa(sender_s);
+				address_t *ga = parse_ga(ga_s);
+				cemi_service_t *cd = calloc(1, sizeof(cemi_service_t) + 1);
+				cd->source = sender[0];
+				cd->destination = ga[0];
+				cd->data_len = 1;
+				cd->data[0] = 0;
+				find_triggers(cd);
+				free(cd);
+				free(sender);
+				free(ga);
+				free(tofree);
+				exit(EXIT_SUCCESS);
+				break;
+			}
+			case '?':
+			default:
+				break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
 
 	printf("Sending data to %s database %s\n", config.host, config.database);
 
