@@ -29,7 +29,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 static config_t config;
-static int socket_fd;
+static int socket_fd, send_socket_fd;
 static struct ip_mreq command = {};
 static struct sockaddr_in _sin = {};
 
@@ -358,7 +358,7 @@ void send_knx_packet(address_t receiver, knx_command_type_t ct, uint8_t data_len
 	address.sin_addr.s_addr = inet_addr(MULTICAST_IP);
 	address.sin_port = htons(MULTICAST_PORT);
 
-	sendto(socket_fd, buf, len, 0, (struct sockaddr *)&address, sizeof(address));
+	sendto(send_socket_fd, buf, len, 0, (struct sockaddr *)&address, sizeof(address));
 }
 
 int main(int argc, char **argv)
@@ -477,6 +477,10 @@ int main(int argc, char **argv)
 
 	pthread_t read_thread_id;
 	pthread_create(&read_thread_id, NULL, read_thread, NULL);
+
+	sleep(2);
+
+	send_socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
 
 	for (uint16_t a; a < UINT16_MAX; ++a)
 	{
