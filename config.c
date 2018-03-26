@@ -328,6 +328,11 @@ address_t *parse_addr(char *addr_s, char *sep, uint8_t area_max, uint8_t line_ma
 		for (uint16_t l = lstart; l <= lend; ++l)
 			for (uint16_t m = mstart; m <= mend; ++m)
 			{
+				if (a == 0 && l == 0 && m == 0)
+				{
+					continue;
+				}
+
 				// Hacky
 				if (line_max == 7)
 				{
