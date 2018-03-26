@@ -353,12 +353,15 @@ void send_knx_packet(address_t receiver, knx_command_type_t ct, uint8_t data_len
 	memcpy(cemi_data->data, data, data_len);
 	cemi_data->data[0] = (cemi_data->data[0] & 0x3F) | ((ct & 0x03) << 6);
 
-	struct sockaddr_in address;
+	struct sockaddr_in address = {};
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = inet_addr(MULTICAST_IP);
 	address.sin_port = htons(MULTICAST_PORT);
 
-	sendto(send_socket_fd, buf, len, 0, (struct sockaddr *)&address, sizeof(address));
+	if (sendto(send_socket_fd, buf, len, 0, (struct sockaddr *)&address, sizeof(address)) < 0)
+	{
+		perror("sendto: ");
+	}
 }
 
 int main(int argc, char **argv)
