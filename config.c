@@ -58,9 +58,19 @@ void print_config(config_t *config)
 		if (config->ga_tags[i] != NULL)
 		{
 			address_t a = {.value = i};
-			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
 			bool first = true;
 			tags_t *entry = config->ga_tags[i];
+
+			if (entry->read_on_startup)
+			{
+				printf(">");
+			}
+			else
+			{
+				printf(" ");
+			}
+			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
+
 			while (entry != NULL)
 			{
 				if (first)
@@ -69,7 +79,7 @@ void print_config(config_t *config)
 				}
 				else
 				{
-					printf("          ");
+					printf("           ");
 				}
 				printf("+ [");
 				bool first_tag = true;
@@ -567,6 +577,55 @@ int parse_config(config_t *config)
 				cur++;
 			}
 			//printf("free: %p\n", addrs);
+			free(addrs);
+		}
+	}
+
+	// Startup reads
+	cJSON *read_on_startup = cJSON_GetObjectItemCaseSensitive(json, "read_on_startup");
+	// read_on_startup is optional
+	if (read_on_startup)
+	{
+		if (!cJSON_IsArray(read_on_startup))
+		{
+			error_ptr = "Expected array, got something else for 'ga_tags'";
+			goto error;
+		}
+
+		cJSON *ga = NULL;
+		cJSON_ArrayForEach(ga, read_on_startup)
+		{
+			if (!cJSON_IsString(ga))
+			{
+				error_ptr = "Expected string for GA entry in 'read_on_startup'";
+				goto error;
+			}
+			if (ga->valuestring == NULL)
+			{
+				error_ptr = "Got empty string instead of a GA entry in 'read_on_startup'";
+				goto error;
+			}
+
+			address_t *addrs = parse_ga(ga->valuestring);
+			address_t *cur = addrs;
+			while (cur->value != 0)
+			{
+				if (config->ga_tags[cur->value] == NULL)
+				{
+					config->ga_tags[cur->value] = calloc(1, sizeof(tags_t));
+					config->ga_tags[cur->value]->read_on_startup = true;
+				}
+				else
+				{
+					tags_t *c = config->ga_tags[cur->value];
+					while (c != NULL)
+					{
+						c->read_on_startup = true;
+						c = c->next;
+					}
+				}
+				cur++;
+			}
 			free(addrs);
 		}
 	}

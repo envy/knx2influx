@@ -285,10 +285,52 @@ void process_packet(uint8_t *buf, size_t len)
 	knx_command_type_t ct = (knx_command_type_t)(((cemi_data->data[0] & 0xC0) >> 6) | ((cemi_data->pci.apci & 0x03) << 2));
 
 	// Only accept writes
-	if (ct != KNX_CT_WRITE)
-		return;
+	if (ct == KNX_CT_WRITE || ct == KNX_CT_ANSWER)
+		find_triggers(cemi_data);
 
-	find_triggers(cemi_data);
+
+}
+
+void send_knx_packet(address_t receiver, knx_command_type_t ct, uint8_t data_len, uint8_t *data)
+{
+	uint32_t len = 6 + 2 + 8 + data_len; // knx_pkt + cemi_msg + cemi_service + data
+	uint8_t buf[len];
+	knx_ip_pkt_t *knx_pkt = (knx_ip_pkt_t *)buf;
+	knx_pkt->header_len = 0x06;
+	knx_pkt->protocol_version = 0x10;
+	knx_pkt->service_type = htons(KNX_ST_ROUTING_INDICATION);
+	knx_pkt->total_len.len = htons(len);
+	cemi_msg_t *cemi_msg = (cemi_msg_t *)knx_pkt->pkt_data;
+	cemi_msg->message_code = KNX_MT_L_DATA_IND;
+	cemi_msg->additional_info_len = 0;
+	cemi_service_t *cemi_data = &cemi_msg->data.service_information;
+	cemi_data->control_1.bits.confirm = 0;
+	cemi_data->control_1.bits.ack = 0;
+	cemi_data->control_1.bits.priority = 0b11;
+	cemi_data->control_1.bits.system_broadcast = 0x01;
+	cemi_data->control_1.bits.repeat = 0x01;
+	cemi_data->control_1.bits.reserved = 0;
+	cemi_data->control_1.bits.frame_type = 0x01;
+	cemi_data->control_2.bits.extended_frame_format = 0x00;
+	cemi_data->control_2.bits.hop_count = 0x06;
+	cemi_data->control_2.bits.dest_addr_type = 0x01;
+	cemi_data->source = config.physaddr;
+	cemi_data->destination = receiver;
+	//cemi_data->destination.bytes.high = (area << 3) | line;
+	//cemi_data->destination.bytes.low = member;
+	cemi_data->data_len = data_len;
+	cemi_data->pci.apci = (ct & 0x0C) >> 2;
+	cemi_data->pci.tpci_seq_number = 0x00; // ???
+	cemi_data->pci.tpci_comm_type = KNX_COT_UDP; // ???
+	memcpy(cemi_data->data, data, data_len);
+	cemi_data->data[0] = (cemi_data->data[0] & 0x3F) | ((ct & 0x03) << 6);
+
+	struct sockaddr_in address;
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = inet_addr(MULTICAST_IP);
+	address.sin_port = htons(MULTICAST_PORT);
+
+	sendto(socket_fd, buf, len, 0, (struct sockaddr *)&address, sizeof(address));
 }
 
 int main(int argc, char **argv)
@@ -405,6 +447,21 @@ int main(int argc, char **argv)
 	}
 
 	atexit(exithandler);
+
+	for (uint16_t a; a < UINT16_MAX; ++a)
+	{
+		address_t addr = { .value = a };
+		tags_t *entry = config.ga_tags[a];
+		uint8_t buf[] = {0};
+		if (entry == NULL)
+			continue;
+
+		if (entry->read_on_startup)
+		{
+			printf("Reading from %u/%u/%u\n", addr.ga.area, addr.ga.line, addr.ga.member);
+			send_knx_packet(addr, KNX_CT_READ, 1, buf);
+		}
+	}
 
 	uint8_t buf[512];
 	ssize_t rec = 0;

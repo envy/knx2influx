@@ -2,6 +2,7 @@
 #define KNX_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * Different service types, we are mainly interested in KNX_ST_ROUTING_INDICATION
@@ -211,6 +212,7 @@ typedef struct __tags
   address_t addr;
   char **tags;
   size_t tags_len;
+  bool read_on_startup;
 } tags_t;
 
 typedef struct __config
@@ -220,6 +222,7 @@ typedef struct __config
   char *database;
   char *user;
   char *password;
+  address_t physaddr;
   ga_t *gas[UINT16_MAX];
   tags_t *sender_tags[UINT16_MAX];
   tags_t *ga_tags[UINT16_MAX];
