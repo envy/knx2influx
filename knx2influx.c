@@ -485,6 +485,10 @@ int main(int argc, char **argv)
 
 	send_socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
 
+	struct in_addr send_if = {};
+	inet_aton(config.interface, &send_if);
+	setsockopt(send_socket_fd, IPPROTO_IP, IP_MULTICAST_IF, &send_if, sizeof(send_if));
+
 	for (uint16_t a; a < UINT16_MAX; ++a)
 	{
 		address_t addr = { .value = a };
