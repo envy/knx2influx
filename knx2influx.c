@@ -32,6 +32,7 @@ static config_t config;
 static int socket_fd, send_socket_fd;
 static struct ip_mreq command = {};
 static struct sockaddr_in _sin = {};
+static pthread_barrier_t bar;
 
 void exithandler()
 {
@@ -295,8 +296,10 @@ void *read_thread(void *unused)
 {
 	(void)unused;
 
-	uint8_t *buf = calloc(512, sizeof(uint8_t));
+	uint8_t buf[512];
 	ssize_t rec = 0;
+
+	pthread_barrier_wait(&bar);
 
 	while(1)
 	{
@@ -478,10 +481,14 @@ int main(int argc, char **argv)
 
 	atexit(exithandler);
 
+	pthread_barrier_init(&bar, NULL, 2);
+
 	pthread_t read_thread_id;
 	pthread_create(&read_thread_id, NULL, read_thread, NULL);
 
-	sleep(2);
+	pthread_barrier_wait(&bar);
+
+	usleep(1000);
 
 	send_socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
 
