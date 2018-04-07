@@ -23,9 +23,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 static config_t config;
-static int socket_fd, send_socket_fd;
-static struct ip_mreq command = {};
-static struct sockaddr_in _sin = {};
 static pthread_barrier_t bar;
 
 static knxnet::KNXnet *knx = nullptr;
@@ -70,6 +67,7 @@ void post(char const *data)
 
 	ret = curl_easy_perform(hnd);
 	curl_easy_cleanup(hnd);
+	(void)ret;
 }
 
 void format_dpt(ga_t *entry, char *_post, uint8_t *data)
@@ -236,10 +234,8 @@ void find_triggers(knxnet::message_t &msg)
 	ga_t *entry = config.gas[msg.receiver.value];
 	while(entry != NULL)
 	{
-		uint8_t data[msg.data_len];
-
 		// Check if sender is blacklisted
-		for (int i = 0; i < entry->ignored_senders_len; ++i)
+		for (size_t i = 0; i < entry->ignored_senders_len; ++i)
 		{
 			knxnet::address_t a_cur = entry->ignored_senders[i];
 			if (a_cur.value == msg.sender.value)
@@ -288,9 +284,8 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	int bflag, ch, fd;
+	int ch;
 
-	bflag = 0;
 	while ((ch = getopt(argc, argv, "pd:")) != -1) {
 		switch (ch) {
 			case 'p':

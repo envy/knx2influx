@@ -157,10 +157,10 @@ long safe_strtol(char const *str, char **endptr, int base)
 	return val;
 }
 
-knxnet::address_t *parse_pa(char *pa)
+knxnet::address_t *parse_pa(const char *pa)
 {
 	// printf("parsing %s\n", pa);
-	knxnet::address_t *addrs = parse_addr(pa, ".", 15, 15);
+	auto addrs = parse_addr(pa, ".", 15, 15);
 	// address_t *cur = addrs;
 	// while (cur->value != 0)
 	// {
@@ -172,10 +172,10 @@ knxnet::address_t *parse_pa(char *pa)
 	return addrs;
 }
 
-knxnet::address_t *parse_ga(char *ga)
+knxnet::address_t *parse_ga(const char *ga)
 {
 	// printf("parsing %s\n", ga);
-	knxnet::address_t *addrs = parse_addr(ga, "/", 31, 7);
+	auto addrs = parse_addr(ga, "/", 31, 7);
 	// address_t *cur = addrs;
 	// while (cur->value != 0)
 	// {
@@ -187,11 +187,10 @@ knxnet::address_t *parse_ga(char *ga)
 	return addrs;
 }
 
-knxnet::address_t *parse_addr(char *addr_s, char *sep, uint8_t area_max, uint8_t line_max)
+knxnet::address_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_max, uint8_t line_max)
 {
 	char *string = strdup(addr_s);
 	char *tofree = string;
-	char *token;
 	uint8_t astart = 0, aend = 0;
 	uint8_t lstart = 0, lend = 0;
 	uint8_t mstart = 0, mend = 0;
@@ -383,9 +382,13 @@ int parse_config(config_t *config)
 	fclose(f);
 	json_str[fsize] = '\0';
 
-	char *error_ptr;
+	std::string error_ptr;
 	// And parse
+	
+	int i = 0;
 	cJSON *json = cJSON_Parse(json_str);
+	cJSON *obj1 = nullptr, *obj2 = nullptr, *obj3 = nullptr, *obj4 = nullptr;
+	knxnet::address_t *cur = nullptr, *addrs1 = nullptr;
 
 	if (json == NULL)
 	{
@@ -393,11 +396,10 @@ int parse_config(config_t *config)
 		goto error;
 	}
 
-	cJSON *interface;
-	interface = cJSON_GetObjectItemCaseSensitive(json, "interface");
-	if (cJSON_IsString(interface) && (interface->valuestring != NULL))
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "interface");
+	if (cJSON_IsString(obj1) && (obj1->valuestring != NULL))
 	{
-		config->interface = strdup(interface->valuestring);
+		config->interface = strdup(obj1->valuestring);
 	}
 	else
 	{
@@ -405,11 +407,10 @@ int parse_config(config_t *config)
 		goto error;
 	}
 
-	cJSON *host;
-	host = cJSON_GetObjectItemCaseSensitive(json, "host");
-	if (cJSON_IsString(host) && (host->valuestring != NULL))
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "host");
+	if (cJSON_IsString(obj1) && (obj1->valuestring != NULL))
 	{
-		config->host = strdup(host->valuestring);
+		config->host = strdup(obj1->valuestring);
 	}
 	else
 	{
@@ -417,90 +418,84 @@ int parse_config(config_t *config)
 		goto error;
 	}
 
-	cJSON *database;
-	database = cJSON_GetObjectItemCaseSensitive(json, "database");
-	if (cJSON_IsString(database) && (database->valuestring != NULL))
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "database");
+	if (cJSON_IsString(obj1) && (obj1->valuestring != NULL))
 	{
-		config->database = strdup(database->valuestring);
+		config->database = strdup(obj1->valuestring);
 	}
 	else
 	{
 		error_ptr = "No database given in config!";
 		goto error;
 	}
-	cJSON *user;
-	user = cJSON_GetObjectItemCaseSensitive(json, "user");
-	if (user && cJSON_IsString(user) && (user->valuestring != NULL))
+
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "user");
+	if (obj1 && cJSON_IsString(obj1) && (obj1->valuestring != NULL))
 	{
-		config->database = strdup(user->valuestring);
+		config->user = strdup(obj1->valuestring);
 	}
-	cJSON *password;
-	password = cJSON_GetObjectItemCaseSensitive(json, "password");
-	if (password && cJSON_IsString(password) && (password->valuestring != NULL))
+
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "password");
+	if (obj1 && cJSON_IsString(obj1) && (obj1->valuestring != NULL))
 	{
-		config->password = strdup(password->valuestring);
+		config->password = strdup(obj1->valuestring);
 	}
 
 	// Sender tags
-	cJSON *sender_tags;
-	sender_tags = cJSON_GetObjectItemCaseSensitive(json, "sender_tags");
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "sender_tags");
 	// sender_tags is optional
-	if (sender_tags)
+	if (obj1)
 	{
-		if (!cJSON_IsObject(sender_tags))
+		if (!cJSON_IsObject(obj1))
 		{
 			error_ptr = "Expected object, got something else for 'sender_tags'";
 			goto error;
 		}
 
-		cJSON *sender;
-		sender = NULL;
-		cJSON_ArrayForEach(sender, sender_tags)
+		obj2 = NULL;
+		cJSON_ArrayForEach(obj2, obj1)
 		{
-			tags_t _sender_tag = {};
+			tags_t sender_tag = {};
 
-			if (!cJSON_IsArray(sender))
+			if (!cJSON_IsArray(obj2))
 			{
 				error_ptr = "Expected array as value, got something else for entry in 'sender_tags'";
 				goto error;
 			}
 
-			_sender_tag.tags_len = cJSON_GetArraySize(sender);
-			_sender_tag.tags = (char **)calloc(_sender_tag.tags_len, sizeof(char *));
-			int i;
+			sender_tag.tags_len = cJSON_GetArraySize(obj2);
+			//sender_tag.tags = (char **)calloc(sender_tag.tags_len, sizeof(char *));
+			sender_tag.tags = new char*[sender_tag.tags_len];
+			
 			i = 0;
 
-			cJSON *tag;
-			tag = NULL;
-			cJSON_ArrayForEach(tag, sender)
+			obj3 = NULL;
+			cJSON_ArrayForEach(obj3, obj2)
 			{
-				if (!cJSON_IsString(tag))
+				if (!cJSON_IsString(obj3))
 				{
 					error_ptr = "Expected string for tag entry in 'sender_tags'";
 					goto error;
 				}
-				if (tag->valuestring == NULL)
+				if (obj3->valuestring == NULL)
 				{
 					error_ptr = "Got empty string instead of a tag entry in 'sender_tags'";
 					goto error;
 				}
 
-				_sender_tag.tags[i] = strdup(tag->valuestring);
+				sender_tag.tags[i] = strdup(obj3->valuestring);
 
 				++i;
-
 			}
 
-			knxnet::address_t *addrs;
-			addrs = parse_pa(sender->string);
-
-			knxnet::address_t *cur;
-			cur = addrs;
+			addrs1 = parse_pa(obj2->string);
+			cur = addrs1;
 			while (cur->value != 0)
 			{
 				tags_t *__sender_tag;
-				__sender_tag = (tags_t *)calloc(1, sizeof(tags_t));
-				memcpy(__sender_tag, &_sender_tag, sizeof(tags_t));
+				//__sender_tag = (tags_t *)calloc(1, sizeof(tags_t));
+				__sender_tag = new tags_t;
+				memcpy(__sender_tag, &sender_tag, sizeof(tags_t));
 
 				if (config->sender_tags[cur->value] == NULL)
 				{
@@ -517,70 +512,66 @@ int parse_config(config_t *config)
 				cur++;
 			}
 			//printf("free: %p\n", addrs);
-			free(addrs);
+			free(addrs1);
 		}
 	}
 
 	// Group address tags
-	cJSON *ga_tags;
-	ga_tags = cJSON_GetObjectItemCaseSensitive(json, "ga_tags");
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "ga_tags");
 	// ga_tags is optional
-	if (ga_tags)
+	if (obj1)
 	{
-		if (!cJSON_IsObject(ga_tags))
+		if (!cJSON_IsObject(obj1))
 		{
 			error_ptr = "Expected object, got something else for 'ga_tags'";
 			goto error;
 		}
 
-		cJSON *ga;
-		ga = NULL;
-		cJSON_ArrayForEach(ga, ga_tags)
+		obj2 = NULL;
+		cJSON_ArrayForEach(obj2, obj1)
 		{
-			tags_t _ga_tag;
-			_ga_tag = {};
+			tags_t ga_tag = {};
 
-			if (!cJSON_IsArray(ga))
+			if (!cJSON_IsArray(obj2))
 			{
 				error_ptr = "Expected array as value, got something else for entry in 'sender_tags'";
 				goto error;
 			}
 
-			_ga_tag.tags_len = cJSON_GetArraySize(ga);
-			_ga_tag.tags = (char **)calloc(_ga_tag.tags_len, sizeof(char *));
-			int i;
+			ga_tag.tags_len = cJSON_GetArraySize(obj2);
+			//ga_tag.tags = (char **)calloc(_ga_tag.tags_len, sizeof(char *));
+			ga_tag.tags = new char*[ga_tag.tags_len];
+
 			i = 0;
 
-			cJSON *tag;
-			tag = NULL;
-			cJSON_ArrayForEach(tag, ga)
+			obj3 = NULL;
+			cJSON_ArrayForEach(obj3, obj2)
 			{
-				if (!cJSON_IsString(tag))
+				if (!cJSON_IsString(obj3))
 				{
 					error_ptr = "Expected string for tag entry in 'sender_tags'";
 					goto error;
 				}
-				if (tag->valuestring == NULL)
+				if (obj3->valuestring == NULL)
 				{
 					error_ptr = "Got empty string instead of a tag entry in 'sender_tags'";
 					goto error;
 				}
 
-				_ga_tag.tags[i] = strdup(tag->valuestring);
+				ga_tag.tags[i] = strdup(obj3->valuestring);
 
 				++i;
 			}
 
-			knxnet::address_t *addrs;
-			addrs = parse_ga(ga->string);
+			addrs1 = parse_ga(obj2->string);
+			cur = addrs1;
 
-			knxnet::address_t *cur;
-			cur = addrs;
 			while (cur->value != 0)
 			{
 				tags_t *__ga_tag;
-				__ga_tag = (tags_t *)calloc(1, sizeof(tags_t));
-				memcpy(__ga_tag, &_ga_tag, sizeof(tags_t));
+				//__ga_tag = (tags_t *)calloc(1, sizeof(tags_t));
+				__ga_tag = new tags_t;
+				memcpy(__ga_tag, &ga_tag, sizeof(tags_t));
 
 				if (config->ga_tags[cur->value] == NULL)
 				{
@@ -597,170 +588,148 @@ int parse_config(config_t *config)
 				cur++;
 			}
 			//printf("free: %p\n", addrs);
-			free(addrs);
+			free(addrs1);
 		}
 	}
 
 	// Startup reads
-	cJSON *read_on_startup;
-	read_on_startup = cJSON_GetObjectItemCaseSensitive(json, "read_on_startup");
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "read_on_startup");
 	// read_on_startup is optional
-	if (read_on_startup)
+	if (obj1)
 	{
-		if (!cJSON_IsArray(read_on_startup))
+		if (!cJSON_IsArray(obj1))
 		{
 			error_ptr = "Expected array, got something else for 'ga_tags'";
 			goto error;
 		}
 
-		cJSON *ga;
-		ga = NULL;
-		cJSON_ArrayForEach(ga, read_on_startup)
+		obj2 = NULL;
+		cJSON_ArrayForEach(obj2, obj1)
 		{
-			if (!cJSON_IsString(ga))
+			if (!cJSON_IsString(obj2))
 			{
 				error_ptr = "Expected string for GA entry in 'read_on_startup'";
 				goto error;
 			}
-			if (ga->valuestring == NULL)
+			if (obj2->valuestring == NULL)
 			{
 				error_ptr = "Got empty string instead of a GA entry in 'read_on_startup'";
 				goto error;
 			}
 
-			knxnet::address_t *addrs;
-			addrs = parse_ga(ga->valuestring);
-			knxnet::address_t *cur;
-			cur = addrs;
+			addrs1 = parse_ga(obj2->valuestring);
+			cur = addrs1;
+
 			while (cur->value != 0)
 			{
 				if (config->ga_tags[cur->value] == NULL)
 				{
-					config->ga_tags[cur->value] = (tags_t *)calloc(1, sizeof(tags_t));
+					//config->ga_tags[cur->value] = (tags_t *)calloc(1, sizeof(tags_t));
+					config->ga_tags[cur->value] = new tags_t;
 					config->ga_tags[cur->value]->read_on_startup = true;
 				}
 				else
 				{
-					tags_t *c;
-					c = config->ga_tags[cur->value];
-					while (c != NULL)
+					tags_t *entry;
+					entry = config->ga_tags[cur->value];
+					while (entry != NULL)
 					{
-						c->read_on_startup = true;
-						c = c->next;
+						entry->read_on_startup = true;
+						entry = entry->next;
 					}
 				}
 				cur++;
 			}
-			free(addrs);
+			free(addrs1);
 		}
 	}
 
 	// Group addresses
-	cJSON *gas;
-	gas = cJSON_GetObjectItemCaseSensitive(json, "gas");
-	if (!cJSON_IsArray(gas))
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "gas");
+	if (!cJSON_IsArray(obj1))
 	{
 		error_ptr = "Expected array, got something else for 'gas'";
 		goto error;
 	}
-	cJSON *ga_obj;
-	ga_obj = NULL;
+	
+	obj2 = NULL;
 
-	cJSON_ArrayForEach(ga_obj, gas)
+	cJSON_ArrayForEach(obj2, obj1)
 	{
-		if (!cJSON_IsObject(ga_obj))
+		if (!cJSON_IsObject(obj2))
 		{
 			error_ptr = "Expected array of ojects, got something that is not object in 'gas'";
 			goto error;
-		}
-		cJSON *ga;
-		ga = cJSON_GetObjectItemCaseSensitive(ga_obj, "ga");
-		if (!cJSON_IsString(ga))
-		{
-			error_ptr = "'ga' is not a string!";
-			goto error;
-		}
-		if (ga->valuestring == NULL)
-		{
-			error_ptr = "'ga' must not be empty!";
-			goto error;
-		}
-		//printf("GA: %s", ga->valuestring);
+		}	
 
-		cJSON *series;
-		series = cJSON_GetObjectItemCaseSensitive(ga_obj, "series");
-		if (!cJSON_IsString(series))
+		ga_t _ga = {};
+
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "series");
+		if (!cJSON_IsString(obj3))
 		{
 			error_ptr = "'series' is not a string!";
 			goto error;
 		}
-		if (ga->valuestring == NULL)
+		if (obj3->valuestring == NULL)
 		{
 			error_ptr = "'series' must not be empty!";
 			goto error;
 		}
 		//printf("Series: %s\n", series->valuestring);
+		_ga.series = strdup(obj3->valuestring);
 
 		// Read out DPT
-		cJSON *dpt;
-		dpt = cJSON_GetObjectItemCaseSensitive(ga_obj, "dpt");
-		if (!cJSON_IsNumber(dpt))
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "dpt");
+		if (!cJSON_IsNumber(obj3))
 		{
 			error_ptr = "'dpt' is not a number!";
 			goto error;
 		}
+		_ga.dpt = (uint8_t)obj3->valueint;
 
 		// If DPT is 1, find out if we should convert to int
-		cJSON *convert_to_int;
-		convert_to_int = cJSON_GetObjectItemCaseSensitive(ga_obj, "convert_to_int");
-		uint8_t convert_dpt1_to_int;
-		convert_dpt1_to_int = 0;
-		if (convert_to_int != NULL)
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "convert_to_int");
+		i = 0;
+		if (obj3)
 		{
-			if (!cJSON_IsBool(convert_to_int))
+			if (!cJSON_IsBool(obj3))
 			{
 				error_ptr = "'convert_to_int' is not a bool!";
 				goto error;
 			}
 
-			convert_dpt1_to_int = convert_to_int->type == cJSON_True ? 1 : 0;
+			i = obj3->type == cJSON_True ? 1 : 0;
 		}
+		_ga.convert_dpt1_to_int = i;
 
-		ga_t _ga;
-		_ga = {};
-
-		_ga.dpt = (uint8_t)dpt->valueint;
-		_ga.convert_dpt1_to_int = convert_dpt1_to_int;
-		_ga.series = strdup(series->valuestring);
-
-		cJSON *ignored_senders;
-		ignored_senders = cJSON_GetObjectItemCaseSensitive(ga_obj, "ignored_senders");
-		if (ignored_senders)
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "ignored_senders");
+		if (obj3)
 		{
-			if (!cJSON_IsArray(ignored_senders))
+			if (!cJSON_IsArray(obj3))
 			{
 				error_ptr = "'ignored_senders' is not an array!";
 				goto error;
 			}
-			_ga.ignored_senders_len = cJSON_GetArraySize(ignored_senders);
-			_ga.ignored_senders = (knxnet::address_t *)calloc(_ga.ignored_senders_len, sizeof(knxnet::address_t));
-			int i = 0;
-			cJSON *ignored_sender;
-			ignored_sender = NULL;
-			cJSON_ArrayForEach(ignored_sender, ignored_senders)
+			_ga.ignored_senders_len = cJSON_GetArraySize(obj3);
+			//_ga.ignored_senders = (knxnet::address_t *)calloc(_ga.ignored_senders_len, sizeof(knxnet::address_t));
+			_ga.ignored_senders = new knxnet::address_t[_ga.ignored_senders_len];
+
+			i = 0;
+			obj4 = NULL;
+			cJSON_ArrayForEach(obj4, obj3)
 			{
-				if (!cJSON_IsString(ignored_sender))
+				if (!cJSON_IsString(obj4))
 				{
 					error_ptr = "Expected array of strings, got something that is not a string in 'ignored_senders'";
 					goto error;
 				}
-				if (ignored_sender->valuestring == NULL)
+				if (obj4->valuestring == NULL)
 				{
 					error_ptr = "Got empty string instead of a physical address in 'ignored_senders'";
 					goto error;
 				}
 				uint32_t area, line, member;
-				sscanf(ignored_sender->valuestring, "%u.%u.%u", &area, &line, &member);
+				sscanf(obj4->valuestring, "%u.%u.%u", &area, &line, &member);
 				_ga.ignored_senders[i].pa.area = area;
 				_ga.ignored_senders[i].pa.line = line;
 				_ga.ignored_senders[i].pa.member = member;
@@ -768,33 +737,33 @@ int parse_config(config_t *config)
 			}
 		}
 
-		cJSON *tags;
-		tags = cJSON_GetObjectItemCaseSensitive(ga_obj, "tags");
-		if (tags)
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "tags");
+		if (obj3)
 		{
-			if (!cJSON_IsArray(tags))
+			if (!cJSON_IsArray(obj3))
 			{
 				error_ptr = "'tags' is not an array!";
 				goto error;
 			}
-			_ga.tags_len = cJSON_GetArraySize(tags);
-			_ga.tags = (char **)calloc(_ga.tags_len, sizeof(char *));
-			int i = 0;
-			cJSON *tag;
-			tag = NULL;
-			cJSON_ArrayForEach(tag, tags)
+			_ga.tags_len = cJSON_GetArraySize(obj3);
+			//_ga.tags = (char **)calloc(_ga.tags_len, sizeof(char *));
+			_ga.tags = new char*[_ga.tags_len];
+			
+			i = 0;
+			obj4 = NULL;
+			cJSON_ArrayForEach(obj4, obj3)
 			{
-				if (!cJSON_IsString(tag))
+				if (!cJSON_IsString(obj4))
 				{
 					error_ptr = "Expected array of string, got something that is not a string in 'tags'";
 					goto error;
 				}
-				if (tag->valuestring == NULL)
+				if (obj4->valuestring == NULL)
 				{
 					error_ptr = "Got empty string instead of a key=value pair in 'tags'";
 					goto error;
 				}
-				_ga.tags[i] = strdup(tag->valuestring);
+				_ga.tags[i] = strdup(obj4->valuestring);
 				++i;
 			}
 		}
@@ -804,23 +773,35 @@ int parse_config(config_t *config)
 			_ga.tags = NULL;
 		}
 
-		knxnet::address_t *addrs;
-		addrs = parse_ga(ga->valuestring);
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "ga");
+		if (!cJSON_IsString(obj3))
+		{
+			error_ptr = "'ga' is not a string!";
+			goto error;
+		}
+		if (obj3->valuestring == NULL)
+		{
+			error_ptr = "'ga' must not be empty!";
+			goto error;
+		}
+		//printf("GA: %s", ga->valuestring);
 
-		knxnet::address_t *ga_addr;
-		ga_addr = addrs;
-		while (ga_addr->value != 0)
+		addrs1 = parse_ga(obj3->valuestring);
+		cur = addrs1;
+
+		while (cur->value != 0)
 		{
 			ga_t *entry;
-			entry = config->gas[ga_addr->value];
+			entry = config->gas[cur->value];
 
 			ga_t *__ga;
-			__ga = (ga_t *)calloc(1, sizeof(ga_t));
+			//__ga = (ga_t *)calloc(1, sizeof(ga_t));
+			__ga = new ga_t;
 			memcpy(__ga, &_ga, sizeof(ga_t));
 
 			if (entry == NULL)
 			{
-				config->gas[ga_addr->value] = __ga;
+				config->gas[cur->value] = __ga;
 			}
 			else
 			{
@@ -832,16 +813,16 @@ int parse_config(config_t *config)
 				entry->next = __ga;
 			}
 
-			ga_addr++;
+			cur++;
 		}
 		//printf("free: %p\n", addrs);
-		free(addrs);
+		free(addrs1);
 	}
 
 	goto end;
 
 error:
-	printf("JSON error: %s\n", error_ptr);
+	std::cerr << "JSON error: " <<  error_ptr << std::endl;
 	status = -1;
 end:
 	cJSON_Delete(json);
