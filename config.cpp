@@ -1,11 +1,9 @@
-#define _GNU_SOURCE
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 #include <unistd.h>
-#include <stdbool.h>
-#include <string.h>
-#include <errno.h>
+#include <cstring>
+#include <cerrno>
 
 #include "cJSON.h"
 #include "config.h"
@@ -17,7 +15,7 @@ void print_config(config_t *config)
 	{
 		if (config->sender_tags[i] != NULL)
 		{
-			address_t a = {.value = i};
+			knxnet::address_t a = {.value = i};
 			printf("%2u.%2u.%3u ", a.pa.area, a.pa.line, a.pa.member);
 			bool first = true;
 			tags_t *entry = config->sender_tags[i];
@@ -57,7 +55,7 @@ void print_config(config_t *config)
 	{
 		if (config->ga_tags[i] != NULL)
 		{
-			address_t a = {.value = i};
+			knxnet::address_t a = {.value = i};
 			bool first = true;
 			tags_t *entry = config->ga_tags[i];
 
@@ -107,7 +105,7 @@ void print_config(config_t *config)
 	{
 		if (config->gas[i] != NULL)
 		{
-			address_t a = {.value = i};
+			knxnet::address_t a = {.value = i};
 			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
 			ga_t *entry = config->gas[i];
 			bool first = true;
@@ -159,10 +157,10 @@ long safe_strtol(char const *str, char **endptr, int base)
 	return val;
 }
 
-address_t *parse_pa(char *pa)
+knxnet::address_t *parse_pa(char *pa)
 {
 	// printf("parsing %s\n", pa);
-	address_t *addrs = parse_addr(pa, ".", 15, 15);
+	knxnet::address_t *addrs = parse_addr(pa, ".", 15, 15);
 	// address_t *cur = addrs;
 	// while (cur->value != 0)
 	// {
@@ -174,10 +172,10 @@ address_t *parse_pa(char *pa)
 	return addrs;
 }
 
-address_t *parse_ga(char *ga)
+knxnet::address_t *parse_ga(char *ga)
 {
 	// printf("parsing %s\n", ga);
-	address_t *addrs = parse_addr(ga, "/", 31, 7);
+	knxnet::address_t *addrs = parse_addr(ga, "/", 31, 7);
 	// address_t *cur = addrs;
 	// while (cur->value != 0)
 	// {
@@ -189,7 +187,7 @@ address_t *parse_ga(char *ga)
 	return addrs;
 }
 
-address_t *parse_addr(char *addr_s, char *sep, uint8_t area_max, uint8_t line_max)
+knxnet::address_t *parse_addr(char *addr_s, char *sep, uint8_t area_max, uint8_t line_max)
 {
 	char *string = strdup(addr_s);
 	char *tofree = string;
@@ -331,9 +329,9 @@ address_t *parse_addr(char *addr_s, char *sep, uint8_t area_max, uint8_t line_ma
 
 	free(tofree);
 	// Allocate enough + 1 for end marker
-	address_t *addr = calloc(acount * lcount * mcount + 1, sizeof(address_t));
+	knxnet::address_t *addr = (knxnet::address_t *)calloc(acount * lcount * mcount + 1, sizeof(knxnet::address_t));
 	//printf("alloc: %p\n", addr);
-	address_t *cur = addr;
+	knxnet::address_t *cur = addr;
 	for (uint16_t a = astart; a <= aend; ++a)
 		for (uint16_t l = lstart; l <= lend; ++l)
 			for (uint16_t m = mstart; m <= mend; ++m)
@@ -380,7 +378,7 @@ int parse_config(config_t *config)
 	fseek(f, 0, SEEK_SET);
 
 	// Read file
-	char *json_str = malloc(fsize + 1);
+	char *json_str = (char *)malloc(fsize + 1);
 	fread(json_str, fsize, 1, f);
 	fclose(f);
 	json_str[fsize] = '\0';
@@ -395,7 +393,8 @@ int parse_config(config_t *config)
 		goto error;
 	}
 
-	cJSON *interface = cJSON_GetObjectItemCaseSensitive(json, "interface");
+	cJSON *interface;
+	interface = cJSON_GetObjectItemCaseSensitive(json, "interface");
 	if (cJSON_IsString(interface) && (interface->valuestring != NULL))
 	{
 		config->interface = strdup(interface->valuestring);
@@ -406,7 +405,8 @@ int parse_config(config_t *config)
 		goto error;
 	}
 
-	cJSON *host = cJSON_GetObjectItemCaseSensitive(json, "host");
+	cJSON *host;
+	host = cJSON_GetObjectItemCaseSensitive(json, "host");
 	if (cJSON_IsString(host) && (host->valuestring != NULL))
 	{
 		config->host = strdup(host->valuestring);
@@ -417,7 +417,8 @@ int parse_config(config_t *config)
 		goto error;
 	}
 
-	cJSON *database = cJSON_GetObjectItemCaseSensitive(json, "database");
+	cJSON *database;
+	database = cJSON_GetObjectItemCaseSensitive(json, "database");
 	if (cJSON_IsString(database) && (database->valuestring != NULL))
 	{
 		config->database = strdup(database->valuestring);
@@ -427,19 +428,22 @@ int parse_config(config_t *config)
 		error_ptr = "No database given in config!";
 		goto error;
 	}
-	cJSON *user = cJSON_GetObjectItemCaseSensitive(json, "user");
+	cJSON *user;
+	user = cJSON_GetObjectItemCaseSensitive(json, "user");
 	if (user && cJSON_IsString(user) && (user->valuestring != NULL))
 	{
 		config->database = strdup(user->valuestring);
 	}
-	cJSON *password = cJSON_GetObjectItemCaseSensitive(json, "password");
+	cJSON *password;
+	password = cJSON_GetObjectItemCaseSensitive(json, "password");
 	if (password && cJSON_IsString(password) && (password->valuestring != NULL))
 	{
 		config->password = strdup(password->valuestring);
 	}
 
 	// Sender tags
-	cJSON *sender_tags = cJSON_GetObjectItemCaseSensitive(json, "sender_tags");
+	cJSON *sender_tags;
+	sender_tags = cJSON_GetObjectItemCaseSensitive(json, "sender_tags");
 	// sender_tags is optional
 	if (sender_tags)
 	{
@@ -449,7 +453,8 @@ int parse_config(config_t *config)
 			goto error;
 		}
 
-		cJSON *sender = NULL;
+		cJSON *sender;
+		sender = NULL;
 		cJSON_ArrayForEach(sender, sender_tags)
 		{
 			tags_t _sender_tag = {};
@@ -461,10 +466,12 @@ int parse_config(config_t *config)
 			}
 
 			_sender_tag.tags_len = cJSON_GetArraySize(sender);
-			_sender_tag.tags = calloc(_sender_tag.tags_len, sizeof(char *));
-			int i = 0;
+			_sender_tag.tags = (char **)calloc(_sender_tag.tags_len, sizeof(char *));
+			int i;
+			i = 0;
 
-			cJSON *tag = NULL;
+			cJSON *tag;
+			tag = NULL;
 			cJSON_ArrayForEach(tag, sender)
 			{
 				if (!cJSON_IsString(tag))
@@ -484,12 +491,15 @@ int parse_config(config_t *config)
 
 			}
 
-			address_t *addrs = parse_pa(sender->string);
+			knxnet::address_t *addrs;
+			addrs = parse_pa(sender->string);
 
-			address_t *cur = addrs;
+			knxnet::address_t *cur;
+			cur = addrs;
 			while (cur->value != 0)
 			{
-				tags_t *__sender_tag = calloc(1, sizeof(tags_t));
+				tags_t *__sender_tag;
+				__sender_tag = (tags_t *)calloc(1, sizeof(tags_t));
 				memcpy(__sender_tag, &_sender_tag, sizeof(tags_t));
 
 				if (config->sender_tags[cur->value] == NULL)
@@ -498,7 +508,8 @@ int parse_config(config_t *config)
 				}
 				else
 				{
-					tags_t *entry = config->sender_tags[cur->value];
+					tags_t *entry;
+					entry = config->sender_tags[cur->value];
 					while (entry->next != NULL)
 						entry = entry->next;
 					entry->next = __sender_tag;
@@ -511,7 +522,8 @@ int parse_config(config_t *config)
 	}
 
 	// Group address tags
-	cJSON *ga_tags = cJSON_GetObjectItemCaseSensitive(json, "ga_tags");
+	cJSON *ga_tags;
+	ga_tags = cJSON_GetObjectItemCaseSensitive(json, "ga_tags");
 	// ga_tags is optional
 	if (ga_tags)
 	{
@@ -521,10 +533,12 @@ int parse_config(config_t *config)
 			goto error;
 		}
 
-		cJSON *ga = NULL;
+		cJSON *ga;
+		ga = NULL;
 		cJSON_ArrayForEach(ga, ga_tags)
 		{
-			tags_t _ga_tag = {};
+			tags_t _ga_tag;
+			_ga_tag = {};
 
 			if (!cJSON_IsArray(ga))
 			{
@@ -533,10 +547,12 @@ int parse_config(config_t *config)
 			}
 
 			_ga_tag.tags_len = cJSON_GetArraySize(ga);
-			_ga_tag.tags = calloc(_ga_tag.tags_len, sizeof(char *));
-			int i = 0;
+			_ga_tag.tags = (char **)calloc(_ga_tag.tags_len, sizeof(char *));
+			int i;
+			i = 0;
 
-			cJSON *tag = NULL;
+			cJSON *tag;
+			tag = NULL;
 			cJSON_ArrayForEach(tag, ga)
 			{
 				if (!cJSON_IsString(tag))
@@ -555,12 +571,15 @@ int parse_config(config_t *config)
 				++i;
 			}
 
-			address_t *addrs = parse_ga(ga->string);
+			knxnet::address_t *addrs;
+			addrs = parse_ga(ga->string);
 
-			address_t *cur = addrs;
+			knxnet::address_t *cur;
+			cur = addrs;
 			while (cur->value != 0)
 			{
-				tags_t *__ga_tag = calloc(1, sizeof(tags_t));
+				tags_t *__ga_tag;
+				__ga_tag = (tags_t *)calloc(1, sizeof(tags_t));
 				memcpy(__ga_tag, &_ga_tag, sizeof(tags_t));
 
 				if (config->ga_tags[cur->value] == NULL)
@@ -569,7 +588,8 @@ int parse_config(config_t *config)
 				}
 				else
 				{
-					tags_t *entry = config->ga_tags[cur->value];
+					tags_t *entry;
+					entry = config->ga_tags[cur->value];
 					while (entry->next != NULL)
 						entry = entry->next;
 					entry->next = __ga_tag;
@@ -582,7 +602,8 @@ int parse_config(config_t *config)
 	}
 
 	// Startup reads
-	cJSON *read_on_startup = cJSON_GetObjectItemCaseSensitive(json, "read_on_startup");
+	cJSON *read_on_startup;
+	read_on_startup = cJSON_GetObjectItemCaseSensitive(json, "read_on_startup");
 	// read_on_startup is optional
 	if (read_on_startup)
 	{
@@ -592,7 +613,8 @@ int parse_config(config_t *config)
 			goto error;
 		}
 
-		cJSON *ga = NULL;
+		cJSON *ga;
+		ga = NULL;
 		cJSON_ArrayForEach(ga, read_on_startup)
 		{
 			if (!cJSON_IsString(ga))
@@ -606,18 +628,21 @@ int parse_config(config_t *config)
 				goto error;
 			}
 
-			address_t *addrs = parse_ga(ga->valuestring);
-			address_t *cur = addrs;
+			knxnet::address_t *addrs;
+			addrs = parse_ga(ga->valuestring);
+			knxnet::address_t *cur;
+			cur = addrs;
 			while (cur->value != 0)
 			{
 				if (config->ga_tags[cur->value] == NULL)
 				{
-					config->ga_tags[cur->value] = calloc(1, sizeof(tags_t));
+					config->ga_tags[cur->value] = (tags_t *)calloc(1, sizeof(tags_t));
 					config->ga_tags[cur->value]->read_on_startup = true;
 				}
 				else
 				{
-					tags_t *c = config->ga_tags[cur->value];
+					tags_t *c;
+					c = config->ga_tags[cur->value];
 					while (c != NULL)
 					{
 						c->read_on_startup = true;
@@ -631,13 +656,15 @@ int parse_config(config_t *config)
 	}
 
 	// Group addresses
-	cJSON *gas = cJSON_GetObjectItemCaseSensitive(json, "gas");
+	cJSON *gas;
+	gas = cJSON_GetObjectItemCaseSensitive(json, "gas");
 	if (!cJSON_IsArray(gas))
 	{
 		error_ptr = "Expected array, got something else for 'gas'";
 		goto error;
 	}
-	cJSON *ga_obj = NULL;
+	cJSON *ga_obj;
+	ga_obj = NULL;
 
 	cJSON_ArrayForEach(ga_obj, gas)
 	{
@@ -646,7 +673,8 @@ int parse_config(config_t *config)
 			error_ptr = "Expected array of ojects, got something that is not object in 'gas'";
 			goto error;
 		}
-		cJSON *ga = cJSON_GetObjectItemCaseSensitive(ga_obj, "ga");
+		cJSON *ga;
+		ga = cJSON_GetObjectItemCaseSensitive(ga_obj, "ga");
 		if (!cJSON_IsString(ga))
 		{
 			error_ptr = "'ga' is not a string!";
@@ -659,7 +687,8 @@ int parse_config(config_t *config)
 		}
 		//printf("GA: %s", ga->valuestring);
 
-		cJSON *series = cJSON_GetObjectItemCaseSensitive(ga_obj, "series");
+		cJSON *series;
+		series = cJSON_GetObjectItemCaseSensitive(ga_obj, "series");
 		if (!cJSON_IsString(series))
 		{
 			error_ptr = "'series' is not a string!";
@@ -673,7 +702,8 @@ int parse_config(config_t *config)
 		//printf("Series: %s\n", series->valuestring);
 
 		// Read out DPT
-		cJSON *dpt = cJSON_GetObjectItemCaseSensitive(ga_obj, "dpt");
+		cJSON *dpt;
+		dpt = cJSON_GetObjectItemCaseSensitive(ga_obj, "dpt");
 		if (!cJSON_IsNumber(dpt))
 		{
 			error_ptr = "'dpt' is not a number!";
@@ -681,8 +711,10 @@ int parse_config(config_t *config)
 		}
 
 		// If DPT is 1, find out if we should convert to int
-		cJSON *convert_to_int = cJSON_GetObjectItemCaseSensitive(ga_obj, "convert_to_int");
-		uint8_t convert_dpt1_to_int = 0;
+		cJSON *convert_to_int;
+		convert_to_int = cJSON_GetObjectItemCaseSensitive(ga_obj, "convert_to_int");
+		uint8_t convert_dpt1_to_int;
+		convert_dpt1_to_int = 0;
 		if (convert_to_int != NULL)
 		{
 			if (!cJSON_IsBool(convert_to_int))
@@ -694,13 +726,15 @@ int parse_config(config_t *config)
 			convert_dpt1_to_int = convert_to_int->type == cJSON_True ? 1 : 0;
 		}
 
-		ga_t _ga = {};
+		ga_t _ga;
+		_ga = {};
 
 		_ga.dpt = (uint8_t)dpt->valueint;
 		_ga.convert_dpt1_to_int = convert_dpt1_to_int;
 		_ga.series = strdup(series->valuestring);
 
-		cJSON *ignored_senders = cJSON_GetObjectItemCaseSensitive(ga_obj, "ignored_senders");
+		cJSON *ignored_senders;
+		ignored_senders = cJSON_GetObjectItemCaseSensitive(ga_obj, "ignored_senders");
 		if (ignored_senders)
 		{
 			if (!cJSON_IsArray(ignored_senders))
@@ -709,9 +743,10 @@ int parse_config(config_t *config)
 				goto error;
 			}
 			_ga.ignored_senders_len = cJSON_GetArraySize(ignored_senders);
-			_ga.ignored_senders = calloc(_ga.ignored_senders_len, sizeof(address_t));
+			_ga.ignored_senders = (knxnet::address_t *)calloc(_ga.ignored_senders_len, sizeof(knxnet::address_t));
 			int i = 0;
-			cJSON *ignored_sender = NULL;
+			cJSON *ignored_sender;
+			ignored_sender = NULL;
 			cJSON_ArrayForEach(ignored_sender, ignored_senders)
 			{
 				if (!cJSON_IsString(ignored_sender))
@@ -733,7 +768,8 @@ int parse_config(config_t *config)
 			}
 		}
 
-		cJSON *tags = cJSON_GetObjectItemCaseSensitive(ga_obj, "tags");
+		cJSON *tags;
+		tags = cJSON_GetObjectItemCaseSensitive(ga_obj, "tags");
 		if (tags)
 		{
 			if (!cJSON_IsArray(tags))
@@ -742,9 +778,10 @@ int parse_config(config_t *config)
 				goto error;
 			}
 			_ga.tags_len = cJSON_GetArraySize(tags);
-			_ga.tags = calloc(_ga.tags_len, sizeof(char *));
+			_ga.tags = (char **)calloc(_ga.tags_len, sizeof(char *));
 			int i = 0;
-			cJSON *tag = NULL;
+			cJSON *tag;
+			tag = NULL;
 			cJSON_ArrayForEach(tag, tags)
 			{
 				if (!cJSON_IsString(tag))
@@ -767,14 +804,18 @@ int parse_config(config_t *config)
 			_ga.tags = NULL;
 		}
 
-		address_t *addrs = parse_ga(ga->valuestring);
+		knxnet::address_t *addrs;
+		addrs = parse_ga(ga->valuestring);
 
-		address_t *ga_addr = addrs;
+		knxnet::address_t *ga_addr;
+		ga_addr = addrs;
 		while (ga_addr->value != 0)
 		{
-			ga_t *entry = config->gas[ga_addr->value];
+			ga_t *entry;
+			entry = config->gas[ga_addr->value];
 
-			ga_t *__ga = calloc(1, sizeof(ga_t));
+			ga_t *__ga;
+			__ga = (ga_t *)calloc(1, sizeof(ga_t));
 			memcpy(__ga, &_ga, sizeof(ga_t));
 
 			if (entry == NULL)

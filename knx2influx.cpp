@@ -1,12 +1,4 @@
-#define _GNU_SOURCE
-
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -22,6 +14,8 @@
 #include "conversion.h"
 #include "config.h"
 
+#include "knxnet.h"
+
 #define MULTICAST_PORT            3671 // [Default 3671]
 #define MULTICAST_IP              "224.0.23.12" // [Default IPAddress(224, 0, 23, 12)]
 
@@ -34,14 +28,11 @@ static struct ip_mreq command = {};
 static struct sockaddr_in _sin = {};
 static pthread_barrier_t bar;
 
+static knxnet::KNXnet *knx = nullptr;
+
 void exithandler()
 {
-	int loop = 1;
-	if (setsockopt(socket_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &command, sizeof(command)) < 0)
-	{
-		perror("setsockopt (IP_DROP_MEMBERSHIP): ");
-	}
-	close(socket_fd);
+	delete knx;
 }
 
 size_t curl_write_data(void *buffer, size_t size, size_t nmemb, void *userp)
@@ -51,6 +42,11 @@ size_t curl_write_data(void *buffer, size_t size, size_t nmemb, void *userp)
 
 void post(char const *data)
 {
+	if (config.dryrun)
+	{
+		return;
+	}
+
 	CURLcode ret;
 	CURL *hnd;
 
@@ -186,7 +182,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 	}
 }
 
-void construct_request(char *buf, ga_t *entry, address_t sender, address_t ga, uint8_t *data)
+void construct_request(char *buf, ga_t *entry, knxnet::address_t sender, knxnet::address_t ga, uint8_t *data)
 {
 	strcat(buf, entry->series);
 	// Add tags, first the ones from the GA entries
@@ -230,32 +226,33 @@ void construct_request(char *buf, ga_t *entry, address_t sender, address_t ga, u
 	format_dpt(entry, buf, data);
 }
 
-void find_triggers(cemi_service_t *cemi_data)
+void find_triggers(knxnet::message_t &msg)
 {
-	ga_t *entry = config.gas[cemi_data->destination.value];
+	if (msg.ct != knxnet::KNX_CT_ANSWER && msg.ct != knxnet::KNX_CT_WRITE)
+	{
+		return;
+	}
+
+	ga_t *entry = config.gas[msg.receiver.value];
 	while(entry != NULL)
 	{
-		uint8_t data[cemi_data->data_len];
+		uint8_t data[msg.data_len];
 
 		// Check if sender is blacklisted
 		for (int i = 0; i < entry->ignored_senders_len; ++i)
 		{
-			address_t a_cur = entry->ignored_senders[i];
-			if (a_cur.value == cemi_data->source.value)
+			knxnet::address_t a_cur = entry->ignored_senders[i];
+			if (a_cur.value == msg.sender.value)
 			{
-				printf("Ignoring sender %u.%u.%u for %u/%u/%u\n", cemi_data->source.pa.area, cemi_data->source.pa.line, cemi_data->source.pa.member, cemi_data->destination.ga.area, cemi_data->destination.ga.line, cemi_data->destination.ga.member);
+				printf("Ignoring sender %u.%u.%u for %u/%u/%u\n", msg.sender.pa.area, msg.sender.pa.line, msg.sender.pa.member, msg.receiver.ga.area, msg.receiver.ga.line, msg.receiver.ga.member);
 				goto next;
 			}
 		}
 
-
-		memcpy(data, cemi_data->data, cemi_data->data_len);
-		data[0] = data[0] & 0x3F;
-
 		char _post[1024];
 		memset(_post, 0, 1024);
 
-		construct_request(_post, entry, cemi_data->source, cemi_data->destination, data);
+		construct_request(_post, entry, msg.sender, msg.receiver, msg.data);
 
 		printf("%s\n", _post);
 		post(_post);
@@ -265,106 +262,18 @@ next:
 	}
 }
 
-void process_packet(uint8_t *buf, size_t len)
-{
-	knx_ip_pkt_t *knx_pkt = (knx_ip_pkt_t *)buf;
-
-	if (knx_pkt->header_len != 0x06 && knx_pkt->protocol_version != 0x10 && knx_pkt->service_type != KNX_ST_ROUTING_INDICATION)
-		return;
-
-	cemi_msg_t *cemi_msg = (cemi_msg_t *)knx_pkt->pkt_data;
-
-	if (cemi_msg->message_code != KNX_MT_L_DATA_IND)
-		return;
-
-	cemi_service_t *cemi_data = &cemi_msg->data.service_information;
-
-	if (cemi_msg->additional_info_len > 0)
-		cemi_data = (cemi_service_t *)(((uint8_t *)cemi_data) + cemi_msg->additional_info_len);
-
-	if (cemi_data->control_2.bits.dest_addr_type != 0x01)
-		return;
-
-	knx_command_type_t ct = (knx_command_type_t)(((cemi_data->data[0] & 0xC0) >> 6) | ((cemi_data->pci.apci & 0x03) << 2));
-
-	// Only accept writes
-	if (ct == KNX_CT_WRITE || ct == KNX_CT_ANSWER)
-		find_triggers(cemi_data);
-}
-
 void *read_thread(void *unused)
 {
 	(void)unused;
-
-	uint8_t buf[512];
-	ssize_t rec = 0;
 
 	pthread_barrier_wait(&bar);
 
 	while(1)
 	{
-		int sin_len = sizeof(_sin);
-		if ((rec = recvfrom(socket_fd, buf, 512, 0, (struct sockaddr *) &_sin, &sin_len)) == -1)
-		{
-			perror("recfrom: ");
-			break;
-		}
-		/*
-		printf("Got %d bytes: ", rec);
-		for (ssize_t i = 0; i < rec; ++i)
-			printf("%02x ", buf[i]);
-		printf("\n");
-		*/
-		process_packet(buf, rec);
-		memset(buf, 0, 512);
+		knx->receive(find_triggers);
 	}
 
 	return NULL;
-}
-
-void send_knx_packet(address_t receiver, knx_command_type_t ct, uint8_t data_len, uint8_t *data)
-{
-	uint32_t len = 6 + 2 + 8 + data_len; // knx_pkt + cemi_msg + cemi_service + data
-	uint8_t buf[len];
-	knx_ip_pkt_t *knx_pkt = (knx_ip_pkt_t *)buf;
-	knx_pkt->header_len = 0x06;
-	knx_pkt->protocol_version = 0x10;
-	knx_pkt->service_type = htons(KNX_ST_ROUTING_INDICATION);
-	knx_pkt->total_len.len = htons(len);
-	cemi_msg_t *cemi_msg = (cemi_msg_t *)knx_pkt->pkt_data;
-	cemi_msg->message_code = KNX_MT_L_DATA_IND;
-	cemi_msg->additional_info_len = 0;
-	cemi_service_t *cemi_data = &cemi_msg->data.service_information;
-	cemi_data->control_1.bits.confirm = 0;
-	cemi_data->control_1.bits.ack = 0;
-	cemi_data->control_1.bits.priority = 0b11;
-	cemi_data->control_1.bits.system_broadcast = 0x01;
-	cemi_data->control_1.bits.repeat = 0x01;
-	cemi_data->control_1.bits.reserved = 0;
-	cemi_data->control_1.bits.frame_type = 0x01;
-	cemi_data->control_2.bits.extended_frame_format = 0x00;
-	cemi_data->control_2.bits.hop_count = 0x06;
-	cemi_data->control_2.bits.dest_addr_type = 0x01;
-	cemi_data->source = config.physaddr;
-	cemi_data->destination = receiver;
-	//cemi_data->destination.bytes.high = (area << 3) | line;
-	//cemi_data->destination.bytes.low = member;
-	cemi_data->data_len = data_len;
-	cemi_data->pci.apci = (ct & 0x0C) >> 2;
-	cemi_data->pci.tpci_seq_number = 0x00; // ???
-	cemi_data->pci.tpci_comm_type = KNX_COT_UDP; // ???
-	memcpy(cemi_data->data, data, data_len);
-	cemi_data->data[0] = (cemi_data->data[0] & 0x3F) | ((ct & 0x03) << 6);
-
-	struct sockaddr_in address = {};
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = inet_addr(MULTICAST_IP);
-	address.sin_port = htons(MULTICAST_PORT);
-
-	if (sendto(send_socket_fd, buf, len, 0, (struct sockaddr *)&address, sizeof(address)) < 0)
-	{
-		perror("sendto: ");
-	}
 }
 
 int main(int argc, char **argv)
@@ -403,16 +312,18 @@ int main(int argc, char **argv)
 					printf("error parsing PA-GA pair\n");
 					exit(EXIT_FAILURE);
 				}
-				address_t *sender = parse_pa(sender_s);
-				address_t *ga = parse_ga(ga_s);
-				cemi_service_t *cd = calloc(1, sizeof(cemi_service_t) + 1);
-				cd->source = sender[0];
-				cd->destination = ga[0];
-				cd->data_len = 1;
-				cd->data[0] = 0;
+				config.dryrun = true;
+				knxnet::address_t *sender = parse_pa(sender_s);
+				knxnet::address_t *ga = parse_ga(ga_s);
+				knxnet::message_t msg = {};
+				msg.sender = sender[0];
+				msg.receiver = ga[0];
+				msg.data = (uint8_t*)calloc(1, 1);
+				msg.data[0] = 0;
+				msg.data_len = 1;
+				msg.ct = knxnet::KNX_CT_WRITE;
 				printf("Triggers for %u/%u/%u send by %u.%u.%u\n", ga[0].ga.area, ga[0].ga.line, ga[0].ga.member, sender[0].pa.area, sender[0].pa.line, sender[0].pa.member);
-				find_triggers(cd);
-				free(cd);
+				find_triggers(msg);
 				free(sender);
 				free(ga);
 				free(tofree);
@@ -429,57 +340,7 @@ int main(int argc, char **argv)
 
 	printf("Sending data to %s database %s\n", config.host, config.database);
 
-	_sin.sin_family = PF_INET;
-	_sin.sin_addr.s_addr = INADDR_ANY;
-	_sin.sin_port = htons(MULTICAST_PORT);
-	if ((socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-	{
-		perror("socket: ");
-		exit(EXIT_FAILURE);
-	}
-	//printf("Our socket fd is %d\n", socket_fd);
-
-	int loop = 1;
-	if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &loop, sizeof(loop)) < 0)
-	{
-		perror("setsockopt (SO_REUSEADDR): ");
-		close(socket_fd);
-		exit(EXIT_FAILURE);
-	}
-
-	if (bind(socket_fd, (struct sockaddr *)&_sin, sizeof(_sin)) < 0)
-	{
-		perror("bind: ");
-		close(socket_fd);
-		exit(EXIT_FAILURE);
-	}
-
-	loop = 1;
-	if (setsockopt(socket_fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0)
-	{
-		perror("setsockopt (IP_MULTICAST_LOOP): ");
-		close(socket_fd);
-		exit(EXIT_FAILURE);
-	}
-
-	command.imr_multiaddr.s_addr = inet_addr(MULTICAST_IP);
-	command.imr_interface.s_addr = inet_addr(config.interface);
-
-	if (command.imr_multiaddr.s_addr == -1)
-	{
-		perror(MULTICAST_IP" is not a valid multicast address: ");
-		close(socket_fd);
-		exit(EXIT_FAILURE);
-	}
-
-	if (setsockopt(socket_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &command, sizeof(command)) < 0)
-	{
-		perror("setsockopt (IP_ADD_MEMBERSHIP): ");
-		close(socket_fd);
-		exit(EXIT_FAILURE);
-	}
-
-	atexit(exithandler);
+	knx = new knxnet::KNXnet(config.interface, config.physaddr);
 
 	pthread_barrier_init(&bar, NULL, 2);
 
@@ -490,15 +351,9 @@ int main(int argc, char **argv)
 
 	usleep(1000);
 
-	send_socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
-
-	struct in_addr send_if = {};
-	inet_aton(config.interface, &send_if);
-	setsockopt(send_socket_fd, IPPROTO_IP, IP_MULTICAST_IF, &send_if, sizeof(send_if));
-
 	for (uint16_t a; a < UINT16_MAX; ++a)
 	{
-		address_t addr = { .value = a };
+		knxnet::address_t addr = { .value = a };
 		tags_t *entry = config.ga_tags[a];
 		uint8_t buf[] = {0};
 		if (entry == NULL)
@@ -507,7 +362,13 @@ int main(int argc, char **argv)
 		if (entry->read_on_startup)
 		{
 			printf("Reading from %u/%u/%u\n", addr.ga.area, addr.ga.line, addr.ga.member);
-			send_knx_packet(addr, KNX_CT_READ, 1, buf);
+			knxnet::message_t msg;
+			msg.sender = config.physaddr;
+			msg.receiver = addr;
+			msg.data = buf;
+			msg.data_len = 1;
+			msg.ct = knxnet::KNX_CT_READ;
+			knx->send(msg);
 		}
 	}
 
