@@ -1,3 +1,6 @@
+# Binaries
+knx2influx
+
 # Prerequisites
 *.d
 
