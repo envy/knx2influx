@@ -11,7 +11,6 @@
 #include <curl/curl.h>
 
 #include "knx.h"
-#include "conversion.h"
 #include "config.h"
 
 #include "knxnet.h"
@@ -76,7 +75,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 	{
 		case 1:
 		{
-			bool val = data_to_bool(data);
+			bool val = knxnet::data_to_bool(data);
 			strcat(_post, "value=");
 			if (entry->convert_dpt1_to_int == 1)
 			{
@@ -90,18 +89,18 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 2:
 		{
-			bool val = data_to_bool(data);
+			bool val = knxnet::data_to_bool(data);
 			strcat(_post, "value=");
 			strcat(_post, val ? "t" : "f");
 			uint8_t other_bit = data[0] >> 1;
-			bool control = data_to_bool(&other_bit);
+			bool control = knxnet::data_to_bool(&other_bit);
 			strcat(_post, ",control=");
 			strcat(_post, control ? "t" : "f");
 			break;
 		}
 		case 5:
 		{
-			uint8_t val = data_to_1byte_uint(data);
+			uint8_t val = knxnet::data_to_1byte_uint(data);
 			char buf[4];
 			snprintf(buf, 4, "%u", val);
 			strcat(_post, "value=");
@@ -111,7 +110,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 6:
 		{
-			int8_t val = data_to_1byte_int(data);
+			int8_t val = knxnet::data_to_1byte_int(data);
 			char buf[5];
 			snprintf(buf, 5, "%d", val);
 			strcat(_post, "value=");
@@ -121,7 +120,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 7:
 		{
-			uint16_t val = data_to_2byte_uint(data);
+			uint16_t val = knxnet::data_to_2byte_uint(data);
 			char buf[6];
 			snprintf(buf, 6, "%u", val);
 			strcat(_post, "value=");
@@ -131,7 +130,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 8:
 		{
-			int16_t val = data_to_2byte_int(data);
+			int16_t val = knxnet::data_to_2byte_int(data);
 			char buf[7];
 			snprintf(buf, 7, "%d", val);
 			strcat(_post, "value=");
@@ -141,7 +140,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 9:
 		{
-			float val = data_to_2byte_float(data);
+			float val = knxnet::data_to_2byte_float(data);
 			char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
 			snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", val);
 			strcat(_post, "value=");
@@ -150,7 +149,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 12:
 		{
-			uint32_t val = data_to_4byte_uint(data);
+			uint32_t val = knxnet::data_to_4byte_uint(data);
 			char buf[11];
 			snprintf(buf, 11, "%u", val);
 			strcat(_post, "value=");
@@ -160,7 +159,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 13:
 		{
-			int32_t val = data_to_4byte_int(data);
+			int32_t val = knxnet::data_to_4byte_int(data);
 			char buf[12];
 			snprintf(buf, 12, "%d", val);
 			strcat(_post, "value=");
@@ -170,7 +169,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		}
 		case 14:
 		{
-			float val = data_to_4byte_float(data);
+			float val = knxnet::data_to_4byte_float(data);
 			char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
 			snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", val);
 			strcat(_post, "value=");
@@ -336,6 +335,7 @@ int main(int argc, char **argv)
 	printf("Sending data to %s database %s\n", config.host, config.database);
 
 	knx = new knxnet::KNXnet(config.interface, config.physaddr);
+	atexit(exithandler);
 
 	pthread_barrier_init(&bar, NULL, 2);
 
@@ -346,7 +346,7 @@ int main(int argc, char **argv)
 
 	usleep(1000);
 
-	for (uint16_t a; a < UINT16_MAX; ++a)
+	for (uint16_t a = 0; a < UINT16_MAX; ++a)
 	{
 		knxnet::address_t addr = { .value = a };
 		tags_t *entry = config.ga_tags[a];
