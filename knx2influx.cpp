@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -9,6 +8,8 @@
 #include <pthread.h>
 
 #include <curl/curl.h>
+
+#include <sstream>
 
 #include "knx.h"
 #include "config.h"
@@ -36,7 +37,31 @@ size_t curl_write_data(void *buffer, size_t size, size_t nmemb, void *userp)
    return size * nmemb;
 }
 
-void post(char const *data)
+static std::string address_to_string(knxnet::address_t &a, char delim)
+{
+	std::stringstream ss;
+	switch (delim)
+	{
+		case '.':
+			ss << (int)a.pa.area;
+			ss << '.';
+			ss << (int)a.pa.line;
+			ss << '.';
+			ss << (int)a.pa.member;
+			break;
+		case '/':
+			ss << (int)a.ga.area;
+			ss << '/';
+			ss << (int)a.ga.line;
+			ss << '/';
+			ss << (int)a.ga.member;
+			break;
+	}
+	std::string s = ss.str();
+	return s;
+}
+
+static void post(char const *data)
 {
 	if (config.dryrun)
 	{
@@ -69,7 +94,7 @@ void post(char const *data)
 	(void)ret;
 }
 
-void format_dpt(ga_t *entry, char *_post, uint8_t *data)
+static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 {
 	switch (entry->dpt)
 	{
@@ -179,7 +204,7 @@ void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 	}
 }
 
-void construct_request(char *buf, ga_t *entry, knxnet::address_t sender, knxnet::address_t ga, uint8_t *data)
+static void construct_request(char *buf, ga_t *entry, knxnet::address_t sender, knxnet::address_t ga, uint8_t *data)
 {
 	strcat(buf, entry->series);
 	// Add tags, first the ones from the GA entries
@@ -223,7 +248,7 @@ void construct_request(char *buf, ga_t *entry, knxnet::address_t sender, knxnet:
 	format_dpt(entry, buf, data);
 }
 
-void find_triggers(knxnet::message_t &msg)
+static void find_triggers(knxnet::message_t &msg)
 {
 	if (msg.ct != knxnet::KNX_CT_ANSWER && msg.ct != knxnet::KNX_CT_WRITE)
 	{
@@ -239,7 +264,8 @@ void find_triggers(knxnet::message_t &msg)
 			knxnet::address_t a_cur = entry->ignored_senders[i];
 			if (a_cur.value == msg.sender.value)
 			{
-				printf("Ignoring sender %u.%u.%u for %u/%u/%u\n", msg.sender.pa.area, msg.sender.pa.line, msg.sender.pa.member, msg.receiver.ga.area, msg.receiver.ga.line, msg.receiver.ga.member);
+				std::cout << "Ignoring sender " << address_to_string(msg.sender, '.');
+				std::cout << " for << " << address_to_string(msg.receiver, '/') << std::endl;
 				goto next;
 			}
 		}
@@ -249,7 +275,7 @@ void find_triggers(knxnet::message_t &msg)
 
 		construct_request(_post, entry, msg.sender, msg.receiver, msg.data);
 
-		printf("%s\n", _post);
+		std::cout << _post << std::endl;
 		post(_post);
 
 next:
@@ -266,7 +292,7 @@ void *read_thread(void *unused)
 	while(1)
 	{
 		knx->receive(find_triggers);
-		fflush(stdout);
+		std::cout << std::flush;
 	}
 
 	return NULL;
@@ -276,20 +302,17 @@ int main(int argc, char **argv)
 {
 	// Init config
 	memset(&config, 0, sizeof(config_t));
-
-	// Parse config first
-	if (parse_config(&config) < 0)
-	{
-		printf("Error parsing JSON.\n");
-		exit(EXIT_FAILURE);
-	}
+	config.file = (char *)"knx2influx.json";
 
 	int ch;
 
-	while ((ch = getopt(argc, argv, "pd:")) != -1) {
+	while ((ch = getopt(argc, argv, "pd:c:")) != -1) {
 		switch (ch) {
 			case 'p':
 				print_config(&config);
+				break;
+			case 'c':
+				config.file = strdup(optarg);
 				break;
 			case 'd':
 			{
@@ -298,13 +321,13 @@ int main(int argc, char **argv)
 				char *sender_s = strsep(&sender_ga, "-");
 				if (sender_s == NULL)
 				{
-					printf("error parsing PA-GA pair\n");
+					std::cerr << "Error parsing PA-GA pair" << std::flush << std::endl;
 					exit(EXIT_FAILURE);
 				}
 				char *ga_s = strsep(&sender_ga, "-");
 				if (ga_s == NULL)
 				{
-					printf("error parsing PA-GA pair\n");
+					std::cerr << "Error parsing PA-GA pair" << std::flush << std::endl;
 					exit(EXIT_FAILURE);
 				}
 				config.dryrun = true;
@@ -317,7 +340,8 @@ int main(int argc, char **argv)
 				msg.data[0] = 0;
 				msg.data_len = 1;
 				msg.ct = knxnet::KNX_CT_WRITE;
-				printf("Triggers for %u/%u/%u send by %u.%u.%u\n", ga[0].ga.area, ga[0].ga.line, ga[0].ga.member, sender[0].pa.area, sender[0].pa.line, sender[0].pa.member);
+				std::cout << "Triggers for " << address_to_string(ga[0], '/');
+				std::cout << " send by " << address_to_string(sender[0], '.') << std::endl;
 				find_triggers(msg);
 				free(sender);
 				free(ga);
@@ -333,7 +357,14 @@ int main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	printf("Sending data to %s database %s\n", config.host, config.database);
+	// Parse config first
+	if (parse_config(&config) < 0)
+	{
+		std::cerr << "Error parsing JSON." << std::flush << std::endl;
+		exit(EXIT_FAILURE);
+	}
+
+	std::cout << "Sending data to " << config.host << " database " << config.database << std::endl;
 
 	knx = new knxnet::KNXnet(config.interface, config.physaddr);
 	atexit(exithandler);
@@ -357,7 +388,7 @@ int main(int argc, char **argv)
 
 		if (entry->read_on_startup)
 		{
-			printf("Reading from %u/%u/%u\n", addr.ga.area, addr.ga.line, addr.ga.member);
+			std::cout << "Reading from " << address_to_string(addr, '/') << std::endl;
 			knxnet::message_t msg;
 			msg.sender = config.physaddr;
 			msg.receiver = addr;

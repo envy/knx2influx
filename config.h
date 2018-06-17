@@ -27,6 +27,7 @@ typedef struct __tags
 
 typedef struct __config
 {
+	char *file;
 	char *interface;
 	char *host;
 	char *database;

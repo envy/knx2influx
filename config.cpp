@@ -365,10 +365,10 @@ int parse_config(config_t *config)
 	int status = 0;
 
 	// Open config file
-	FILE *f = fopen("knx2influx.json", "rb");
+	FILE *f = fopen(config->file, "rb");
 	if (f == NULL)
 	{
-		printf("Could not find config file knx2influx.json!\n");
+		std::cerr << "Could not find config file " << config->file << "!" << std::endl;
 		status = -1;
 		return status;
 	}
