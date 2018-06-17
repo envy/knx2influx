@@ -1,0 +1,3 @@
+[submodule "libknxnet"]
+	path = libknxnet
+	url = git@github.com:envy/libknxnet.git

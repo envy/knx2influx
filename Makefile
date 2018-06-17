@@ -11,5 +11,8 @@ HEADERS := knx.h config.h
 knx2influx: knx2influx.o cJSON.o config.o libknxnet/libknxnet.a
 	$(CXX) $(LDFLAGS) $^ -o $@
 
+libknxnet/libknxnet.a:
+	cd libknxnet && make
+
 clean:
 	rm -rf *.o knx2influx
