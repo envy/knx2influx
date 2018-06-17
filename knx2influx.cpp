@@ -266,6 +266,7 @@ void *read_thread(void *unused)
 	while(1)
 	{
 		knx->receive(find_triggers);
+		fflush(stdout);
 	}
 
 	return NULL;
