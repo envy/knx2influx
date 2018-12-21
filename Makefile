@@ -9,7 +9,7 @@ HEADERS := knx.h config.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 knx2influx: knx2influx.o cJSON.o config.o libknxnet/libknxnet.a
-	$(CXX) $(LDFLAGS) $^ -o $@
+	$(CXX) $^ -o $@ $(LDFLAGS)
 
 libknxnet/libknxnet.a:
 	cd libknxnet && make
