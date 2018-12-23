@@ -7,6 +7,8 @@
 #include <float.h>
 #include <pthread.h>
 
+#include <chrono>
+
 #include <curl/curl.h>
 
 #include <sstream>
@@ -283,6 +285,33 @@ next:
 	}
 }
 
+pthread_rwlock_t periodic_barrier;
+
+void periodic_read(knx_timer_t *timer)
+{
+	uint8_t buf[] = {0};
+	pthread_rwlock_rdlock(&periodic_barrier);
+
+	while(1)
+	{
+		std::this_thread::sleep_for(std::chrono::seconds(timer->interval));
+
+		knxnet::address_t *cur = timer->addrs;
+		while (cur->value != 0)
+		{
+			std::cout << "Reading from " << address_to_string(*cur, '/') << std::endl;
+			knxnet::message_t msg;
+			msg.sender = config.physaddr;
+			msg.receiver = *cur;
+			msg.data = buf;
+			msg.data_len = 1;
+			msg.ct = knxnet::KNX_CT_READ;
+			knx->send(msg);
+			cur++;
+		}
+	}
+}
+
 void *read_thread(void *unused)
 {
 	(void)unused;
@@ -357,8 +386,10 @@ int main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	pthread_rwlock_wrlock(&periodic_barrier);
+
 	// Parse config first
-	if (parse_config(&config) < 0)
+	if (parse_config(&config, periodic_read) < 0)
 	{
 		std::cerr << "Error parsing JSON." << std::flush << std::endl;
 		exit(EXIT_FAILURE);
@@ -398,6 +429,8 @@ int main(int argc, char **argv)
 			knx->send(msg);
 		}
 	}
+
+	pthread_rwlock_unlock(&periodic_barrier);
 
 	pthread_join(read_thread_id, NULL);
 

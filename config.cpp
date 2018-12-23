@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <cerrno>
+#include <thread>
 
 #include "cJSON.h"
 #include "config.h"
@@ -360,7 +361,7 @@ knxnet::address_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_
 	return addr;
 }
 
-int parse_config(config_t *config)
+int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer))
 {
 	int status = 0;
 
@@ -388,6 +389,7 @@ int parse_config(config_t *config)
 	int i = 0;
 	cJSON *json = cJSON_Parse(json_str);
 	cJSON *obj1 = nullptr, *obj2 = nullptr, *obj3 = nullptr, *obj4 = nullptr;
+	int arr_len, ret;
 	knxnet::address_t *cur = nullptr, *addrs1 = nullptr;
 
 	if (json == NULL)
@@ -513,6 +515,67 @@ int parse_config(config_t *config)
 			}
 			//printf("free: %p\n", addrs);
 			free(addrs1);
+		}
+	}
+
+	// Periodic reading
+	obj1 = cJSON_GetObjectItemCaseSensitive(json, "periodic_read");
+	if (obj1)
+	{
+		if (!cJSON_IsObject(obj1))
+		{
+			error_ptr = "Expected object, got something else for 'periodic_read'";
+			goto error;
+		}
+		
+		// Iterate over object
+		obj2 = NULL;
+		knx_timer_t *last = nullptr;
+		cJSON_ArrayForEach(obj2, obj1)
+		{
+			if (!cJSON_IsArray(obj2))
+			{
+				error_ptr = "Expected array as value, got something else for entry in 'periodic_read'";
+				goto error;
+			}
+			knx_timer_t *t = new knx_timer_t;
+			t->next = nullptr;
+			t->thread = new std::thread(periodic_read_fkt, t);
+			t->interval = strtoul(obj2->string, nullptr, 10);
+			if (errno == ERANGE)
+			{
+				error_ptr = "Invalid interval!";
+				goto error;
+			}
+
+			// Iterate over the arrays
+			obj3 = NULL;
+			cJSON_ArrayForEach(obj3, obj2)
+			{
+				if (!cJSON_IsString(obj3))
+				{
+					error_ptr = "Expected string for ga entry in 'periodic_read'";
+					goto error;
+				}
+				if (obj3->valuestring == NULL)
+				{
+					error_ptr = "Got empty string instead of a ga entry in 'periodic_read'";
+					goto error;
+				}
+
+				t->addrs = parse_ga(obj3->valuestring);
+			}
+
+			if (last == nullptr)
+			{
+				// is first entry
+				config->timers = t;
+			}
+			else
+			{
+				last->next = t;
+			}
+			last = t;
 		}
 	}
 

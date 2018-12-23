@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include "knxnet.h"
+#include <thread>
 
 typedef struct __ga
 {
@@ -25,6 +26,14 @@ typedef struct __tags
 	bool read_on_startup;
 } tags_t;
 
+typedef struct __timer
+{
+	struct __timer *next;
+	uint64_t interval;
+	std::thread *thread;
+	knxnet::address_t *addrs;
+} knx_timer_t;
+
 typedef struct __config
 {
 	char *file;
@@ -38,9 +47,10 @@ typedef struct __config
 	ga_t *gas[UINT16_MAX];
 	tags_t *sender_tags[UINT16_MAX];
 	tags_t *ga_tags[UINT16_MAX];
+	knx_timer_t *timers;
 } config_t;
 
-int parse_config(config_t *config);
+int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer));
 knxnet::address_t *parse_pa(const char *pa);
 knxnet::address_t *parse_ga(const char *ga);
 knxnet::address_t *parse_addr(const char *addr, const char *sep, uint8_t area_max, uint8_t line_max);
