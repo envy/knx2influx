@@ -26,8 +26,9 @@
 
 static config_t config;
 static pthread_barrier_t bar;
-
+static pthread_rwlock_t periodic_barrier;
 static knxnet::KNXnet *knx = nullptr;
+static CURL *handle = nullptr;
 
 void exithandler()
 {
@@ -71,29 +72,33 @@ static void post(char const *data)
 	}
 
 	CURLcode ret;
-	CURL *hnd;
 
-	hnd = curl_easy_init();
-	char host[1024];
-	host[0] = 0;
-	strcat(host, config.host);
-	strcat(host, "/write?db=");
-	strcat(host, config.database);
-	curl_easy_setopt(hnd, CURLOPT_URL, host);
-	curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
-	curl_easy_setopt(hnd, CURLOPT_HEADER, 1L);
-	curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, data);
-	curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)strlen(data));
-	curl_easy_setopt(hnd, CURLOPT_USERAGENT, "knx2influx");
-	curl_easy_setopt(hnd, CURLOPT_MAXREDIRS, 50L);
-	curl_easy_setopt(hnd, CURLOPT_CUSTOMREQUEST, "POST");
-	curl_easy_setopt(hnd, CURLOPT_TCP_KEEPALIVE, 0L);
+	if (handle == nullptr)
+	{
+		handle = curl_easy_init();
+		char host[1024];
+		host[0] = 0;
+		strcat(host, config.host);
+		strcat(host, "/write?db=");
+		strcat(host, config.database);
+		curl_easy_setopt(handle, CURLOPT_URL, host);
+		curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 1L);
+		curl_easy_setopt(handle, CURLOPT_HEADER, 1L);
+		curl_easy_setopt(handle, CURLOPT_USERAGENT, "knx2influx");
+		curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 50L);
+		curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, "POST");
+		curl_easy_setopt(handle, CURLOPT_TCP_KEEPALIVE, 1L);
+		curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, curl_write_data);
+	}
 
-	curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, curl_write_data);
+	curl_easy_setopt(handle, CURLOPT_POSTFIELDS, data);
+	curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)strlen(data));
 
-	ret = curl_easy_perform(hnd);
-	curl_easy_cleanup(hnd);
-	(void)ret;
+	ret = curl_easy_perform(handle);
+	if (ret != CURLE_OK)
+	{
+		std::cerr << "Error doing curl request" << std::endl;
+	}
 }
 
 static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
@@ -285,8 +290,6 @@ next:
 	}
 }
 
-pthread_rwlock_t periodic_barrier;
-
 void periodic_read(knx_timer_t *timer)
 {
 	uint8_t buf[] = {0};
@@ -370,8 +373,8 @@ int main(int argc, char **argv)
 				std::cout << "Triggers for " << address_to_string(ga->addrs[0], '/');
 				std::cout << " send by " << address_to_string(sender->addrs[0], '.') << std::endl;
 				find_triggers(msg);
-				free(sender);
-				free(ga);
+				delete sender;
+				delete ga;
 				free(tofree);
 				exit(EXIT_SUCCESS);
 				break;
@@ -383,6 +386,8 @@ int main(int argc, char **argv)
 	}
 	argc -= optind;
 	argv += optind;
+
+	curl_global_init(CURL_GLOBAL_ALL);
 
 	pthread_rwlock_wrlock(&periodic_barrier);
 
