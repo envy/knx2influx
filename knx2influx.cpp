@@ -296,18 +296,16 @@ void periodic_read(knx_timer_t *timer)
 	{
 		std::this_thread::sleep_for(std::chrono::seconds(timer->interval));
 
-		knxnet::address_t *cur = timer->addrs;
-		while (cur->value != 0)
+		for (uint64_t i = 0; i < timer->addrs->len; ++i)
 		{
-			std::cout << "Reading from " << address_to_string(*cur, '/') << std::endl;
+			std::cout << "Reading from " << address_to_string(timer->addrs->addrs[i], '/') << std::endl;
 			knxnet::message_t msg;
 			msg.sender = config.physaddr;
-			msg.receiver = *cur;
+			msg.receiver = timer->addrs->addrs[i];
 			msg.data = buf;
 			msg.data_len = 1;
 			msg.ct = knxnet::KNX_CT_READ;
 			knx->send(msg);
-			cur++;
 		}
 	}
 }
@@ -360,17 +358,17 @@ int main(int argc, char **argv)
 					exit(EXIT_FAILURE);
 				}
 				config.dryrun = true;
-				knxnet::address_t *sender = parse_pa(sender_s);
-				knxnet::address_t *ga = parse_ga(ga_s);
+				knxnet::address_arr_t *sender = parse_pa(sender_s);
+				knxnet::address_arr_t *ga = parse_ga(ga_s);
 				knxnet::message_t msg = {};
-				msg.sender = sender[0];
-				msg.receiver = ga[0];
+				msg.sender = sender->addrs[0];
+				msg.receiver = ga->addrs[0];
 				msg.data = (uint8_t*)calloc(1, 1);
 				msg.data[0] = 0;
 				msg.data_len = 1;
 				msg.ct = knxnet::KNX_CT_WRITE;
-				std::cout << "Triggers for " << address_to_string(ga[0], '/');
-				std::cout << " send by " << address_to_string(sender[0], '.') << std::endl;
+				std::cout << "Triggers for " << address_to_string(ga->addrs[0], '/');
+				std::cout << " send by " << address_to_string(sender->addrs[0], '.') << std::endl;
 				find_triggers(msg);
 				free(sender);
 				free(ga);

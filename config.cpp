@@ -158,7 +158,7 @@ long safe_strtol(char const *str, char **endptr, int base)
 	return val;
 }
 
-knxnet::address_t *parse_pa(const char *pa)
+knxnet::address_arr_t *parse_pa(const char *pa)
 {
 	// printf("parsing %s\n", pa);
 	auto addrs = parse_addr(pa, ".", 15, 15);
@@ -173,7 +173,7 @@ knxnet::address_t *parse_pa(const char *pa)
 	return addrs;
 }
 
-knxnet::address_t *parse_ga(const char *ga)
+knxnet::address_arr_t *parse_ga(const char *ga)
 {
 	// printf("parsing %s\n", ga);
 	auto addrs = parse_addr(ga, "/", 31, 7);
@@ -188,14 +188,13 @@ knxnet::address_t *parse_ga(const char *ga)
 	return addrs;
 }
 
-knxnet::address_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_max, uint8_t line_max)
+knxnet::address_arr_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_max, uint8_t line_max)
 {
 	char *string = strdup(addr_s);
 	char *tofree = string;
 	uint8_t astart = 0, aend = 0;
 	uint8_t lstart = 0, lend = 0;
 	uint8_t mstart = 0, mend = 0;
-	uint16_t acount = 0, lcount = 0, mcount = 0;
 
 	char *area_s = strsep(&string, sep);
 	if (area_s == NULL)
@@ -237,20 +236,17 @@ knxnet::address_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_
 		//printf("%s - %s\n", start_s, end_s);
 		astart = safe_strtol(start_s, NULL, 10);
 		aend = safe_strtol(end_s, NULL, 10);
-		acount = aend - astart + 1;
 	}
 	else if (area_s[0] == '*')
 	{
 		// Wildard
 		astart = 0;
 		aend = area_max;
-		acount = area_max + 1;
 	}
 	else
 	{
 		astart = safe_strtol(area_s, NULL, 10);
 		aend = astart;
-		acount = 1;
 	}
 
 	// Line
@@ -274,20 +270,17 @@ knxnet::address_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_
 		//printf("%s - %s\n", start_s, end_s);
 		lstart = safe_strtol(start_s, NULL, 10);
 		lend = safe_strtol(end_s, NULL, 10);
-		lcount = lend - lstart + 1;
 	}
 	else if (line_s[0] == '*')
 	{
 		// Wildard
 		lstart = 0;
 		lend = line_max;
-		lcount = line_max + 1;
 	}
 	else
 	{
 		lstart = safe_strtol(line_s, NULL, 10);
 		lend = lstart;
-		lcount = 1;
 	}
 
 	// Member
@@ -311,27 +304,23 @@ knxnet::address_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_
 		//printf("%s - %s\n", start_s, end_s);
 		mstart = safe_strtol(start_s, NULL, 10);
 		mend = safe_strtol(end_s, NULL, 10);
-		mcount = mend - mstart + 1;
 	}
 	else if (member_s[0] == '*')
 	{
 		// Wildard
 		mstart = 0;
 		mend = 255;
-		mcount = 256;
 	}
 	else
 	{
 		mstart = safe_strtol(member_s, NULL, 10);
 		mend = mstart;
-		mcount = 1;
 	}
 
 	free(tofree);
-	// Allocate enough + 1 for end marker
-	knxnet::address_t *addr = (knxnet::address_t *)calloc(acount * lcount * mcount + 1, sizeof(knxnet::address_t));
-	//printf("alloc: %p\n", addr);
-	knxnet::address_t *cur = addr;
+
+	knxnet::address_arr_t *addrs = new knxnet::address_arr_t;
+	knxnet::address_t cur;
 	for (uint16_t a = astart; a <= aend; ++a)
 		for (uint16_t l = lstart; l <= lend; ++l)
 			for (uint16_t m = mstart; m <= mend; ++m)
@@ -344,21 +333,21 @@ knxnet::address_t *parse_addr(const char *addr_s, const char *sep, uint8_t area_
 				// Hacky
 				if (line_max == 7)
 				{
-					cur->ga.area = a;
-					cur->ga.line = l;
-					cur->ga.member = m;
+					cur.ga.area = a;
+					cur.ga.line = l;
+					cur.ga.member = m;
 				}
 				else
 				{
-					cur->pa.area = a;
-					cur->pa.line = l;
-					cur->pa.member = m;
+					cur.pa.area = a;
+					cur.pa.line = l;
+					cur.pa.member = m;
 				}
 
-				cur++;
+				addrs->add(cur);
 			}
 
-	return addr;
+	return addrs;
 }
 
 int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer))
@@ -389,8 +378,8 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 	int i = 0;
 	cJSON *json = cJSON_Parse(json_str);
 	cJSON *obj1 = nullptr, *obj2 = nullptr, *obj3 = nullptr, *obj4 = nullptr;
-	int arr_len, ret;
-	knxnet::address_t *cur = nullptr, *addrs1 = nullptr;
+	knxnet::address_t *cur;
+	knxnet::address_arr_t *addrs1 = nullptr;
 
 	if (json == NULL)
 	{
@@ -491,7 +480,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			}
 
 			addrs1 = parse_pa(obj2->string);
-			cur = addrs1;
+			cur = addrs1->addrs;
 			while (cur->value != 0)
 			{
 				tags_t *__sender_tag;
@@ -562,8 +551,17 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 					error_ptr = "Got empty string instead of a ga entry in 'periodic_read'";
 					goto error;
 				}
-
-				t->addrs = parse_ga(obj3->valuestring);
+				if (t->addrs == nullptr)
+				{
+					t->addrs = parse_ga(obj3->valuestring);
+				}
+				else
+				{
+					// Merge current addresses with the new ones
+					addrs1 = parse_ga(obj3->valuestring);
+					t->addrs->add(addrs1);
+					delete addrs1;
+				}
 			}
 
 			if (last == nullptr)
@@ -627,7 +625,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			}
 
 			addrs1 = parse_ga(obj2->string);
-			cur = addrs1;
+			cur = addrs1->addrs;
 
 			while (cur->value != 0)
 			{
@@ -681,7 +679,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			}
 
 			addrs1 = parse_ga(obj2->valuestring);
-			cur = addrs1;
+			cur = addrs1->addrs;
 
 			while (cur->value != 0)
 			{
@@ -850,7 +848,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 		//printf("GA: %s", ga->valuestring);
 
 		addrs1 = parse_ga(obj3->valuestring);
-		cur = addrs1;
+		cur = addrs1->addrs;
 
 		while (cur->value != 0)
 		{
