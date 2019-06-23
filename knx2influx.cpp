@@ -352,6 +352,11 @@ int main(int argc, char **argv)
 				break;
 			case 'd':
 			{
+				if (parse_config(&config, periodic_read) < 0)
+				{
+					std::cerr << "Error parsing JSON." << std::flush << std::endl;
+					exit(EXIT_FAILURE);
+				}
 				char *sender_ga = strdup(optarg);
 				char *tofree = sender_ga;
 				char *sender_s = strsep(&sender_ga, "-");
