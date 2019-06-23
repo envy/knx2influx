@@ -61,7 +61,7 @@ void print_config(config_t *config)
 			tags_t *ga_tags_entry = config->ga_tags[i];
 			bool first = true;
 
-			if (ga_tags_entry->read_on_startup)
+			if (ga_tags_entry != nullptr && ga_tags_entry->read_on_startup)
 			{
 				printf(">");
 			}
