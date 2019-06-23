@@ -51,16 +51,17 @@ void print_config(config_t *config)
 	}
 	printf("\n");
 
-	// GA tags
+	// Group addresses
 	for (uint16_t i = 0; i < UINT16_MAX; ++i)
 	{
-		if (config->ga_tags[i] != NULL)
+		if (config->gas[i] != NULL)
 		{
 			knxnet::address_t a = {.value = i};
+			ga_t *entry = config->gas[i];
+			tags_t *ga_tags_entry = config->ga_tags[i];
 			bool first = true;
-			tags_t *entry = config->ga_tags[i];
 
-			if (entry->read_on_startup)
+			if (ga_tags_entry->read_on_startup)
 			{
 				printf(">");
 			}
@@ -68,6 +69,7 @@ void print_config(config_t *config)
 			{
 				printf(" ");
 			}
+
 			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
 
 			while (entry != NULL)
@@ -80,51 +82,11 @@ void print_config(config_t *config)
 				{
 					printf("           ");
 				}
-				printf("+ [");
-				bool first_tag = true;
-				for (size_t i = 0; i < entry->tags_len; ++i)
-				{
-					if (first_tag)
-					{
-						first_tag = false;
-					}
-					else
-					{
-						printf(", ");
-					}
-					printf("%s", entry->tags[i]);
-				}
-				printf("]\n");
-				entry = entry->next;
-			}
-		}
-	}
-	printf("\n");
-
-	// Group addresses
-	for (uint16_t i = 0; i < UINT16_MAX; ++i)
-	{
-		if (config->gas[i] != NULL)
-		{
-			knxnet::address_t a = {.value = i};
-			printf("%2u/%2u/%3u ", a.ga.area, a.ga.line, a.ga.member);
-			ga_t *entry = config->gas[i];
-			bool first = true;
-			while (entry != NULL)
-			{
-				if (first)
-				{
-					first = false;
-				}
-				else
-				{
-					printf("          ");
-				}
 				printf("-> %s (DPT %u%s) ", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
 
 				bool first_tag = true;
 				printf("[");
-				for (size_t i = 0; i < entry->tags_len; ++i)
+				for (size_t t = 0; t < entry->tags_len; ++t)
 				{
 					if (first_tag)
 					{
@@ -134,16 +96,38 @@ void print_config(config_t *config)
 					{
 						printf(", ");
 					}
-					printf("%s", entry->tags[i]);
+					printf("%s", entry->tags[t]);
 				}
 				printf("]\n");
 
+				while (ga_tags_entry != nullptr){
+					first_tag = true;
+					if (ga_tags_entry->tags_len > 0)
+					{
+						printf("           +  [");
+					}
+					for (size_t t = 0; t < ga_tags_entry->tags_len; ++t)
+					{
+						if (first_tag)
+						{
+							first_tag = false;
+						}
+						else
+						{
+							printf(", ");
+						}
+						printf("%s", ga_tags_entry->tags[t]);
+					}
+					if (ga_tags_entry->tags_len > 0)
+					{
+						printf("]\n");
+					}
+					ga_tags_entry = ga_tags_entry->next;
+				}
 				entry = entry->next;
 			}
 		}
 	}
-
-	exit(0);
 }
 
 long safe_strtol(char const *str, char **endptr, int base)
@@ -374,7 +358,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 
 	std::string error_ptr;
 	// And parse
-	
+
 	int i = 0;
 	cJSON *json = cJSON_Parse(json_str);
 	cJSON *obj1 = nullptr, *obj2 = nullptr, *obj3 = nullptr, *obj4 = nullptr;
@@ -457,7 +441,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			sender_tag.tags_len = cJSON_GetArraySize(obj2);
 			//sender_tag.tags = (char **)calloc(sender_tag.tags_len, sizeof(char *));
 			sender_tag.tags = new char*[sender_tag.tags_len];
-			
+
 			i = 0;
 
 			obj3 = NULL;
@@ -516,7 +500,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			error_ptr = "Expected object, got something else for 'periodic_read'";
 			goto error;
 		}
-		
+
 		// Iterate over object
 		obj2 = NULL;
 		knx_timer_t *last = nullptr;
@@ -712,7 +696,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 		error_ptr = "Expected array, got something else for 'gas'";
 		goto error;
 	}
-	
+
 	obj2 = NULL;
 
 	cJSON_ArrayForEach(obj2, obj1)
@@ -721,7 +705,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 		{
 			error_ptr = "Expected array of ojects, got something that is not object in 'gas'";
 			goto error;
-		}	
+		}
 
 		ga_t _ga = {};
 
@@ -809,7 +793,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			_ga.tags_len = cJSON_GetArraySize(obj3);
 			//_ga.tags = (char **)calloc(_ga.tags_len, sizeof(char *));
 			_ga.tags = new char*[_ga.tags_len];
-			
+
 			i = 0;
 			obj4 = NULL;
 			cJSON_ArrayForEach(obj4, obj3)
