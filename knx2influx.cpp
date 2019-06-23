@@ -334,18 +334,16 @@ int main(int argc, char **argv)
 	memset(&config, 0, sizeof(config_t));
 	config.file = (char *)"knx2influx.json";
 
-	// Parse config first
-	if (parse_config(&config, periodic_read) < 0)
-	{
-		std::cerr << "Error parsing JSON." << std::flush << std::endl;
-		exit(EXIT_FAILURE);
-	}
-
 	int ch;
 
 	while ((ch = getopt(argc, argv, "pd:c:")) != -1) {
 		switch (ch) {
 			case 'p':
+				if (parse_config(&config, periodic_read) < 0)
+				{
+					std::cerr << "Error parsing JSON." << std::flush << std::endl;
+					exit(EXIT_FAILURE);
+				}
 				print_config(&config);
 				exit(EXIT_SUCCESS);
 				break;
@@ -394,6 +392,13 @@ int main(int argc, char **argv)
 	}
 	argc -= optind;
 	argv += optind;
+
+	// Parse config first
+	if (parse_config(&config, periodic_read) < 0)
+	{
+		std::cerr << "Error parsing JSON." << std::flush << std::endl;
+		exit(EXIT_FAILURE);
+	}
 
 	curl_global_init(CURL_GLOBAL_ALL);
 
