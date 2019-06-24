@@ -40,6 +40,7 @@ Minimal config is:
 
 `ga` is the group address, is this case 1/2/3.
 `series` is the name of the measurement in InfluxDB that it should write the data to.
+`log_only` is optional (default `false`) and will prevent sending the data to InfluxDB. Instead the line protocol string will only be logged to standard out.
 `dpt` is the Datapoint Type (DPT) of the data. The following DPTs are supported:
 * `1`: Mapped to boolean.
 * `2`: Mapped to two booleans, one for the data, one for the control.
@@ -51,6 +52,7 @@ Minimal config is:
 * `12`: 4 Byte unsigned integer.
 * `13`: 4 Byte signed integer.
 * `14`: 4 Byte float.
+* `232`: 3 Byte color. Will produce three fields `red`, `green` and `blue`
 
 Optionally, an additional list of tags can be given:
 
