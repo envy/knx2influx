@@ -513,14 +513,12 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			}
 			knx_timer_t *t = new knx_timer_t;
 			t->next = nullptr;
-			t->thread = new std::thread(periodic_read_fkt, t);
 			t->interval = strtoul(obj2->string, nullptr, 10);
 			if (errno == ERANGE)
 			{
 				error_ptr = "Invalid interval!";
 				goto error;
 			}
-
 			// Iterate over the arrays
 			obj3 = NULL;
 			cJSON_ArrayForEach(obj3, obj2)
@@ -547,6 +545,8 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 					delete addrs1;
 				}
 			}
+
+			t->thread = new std::thread(periodic_read_fkt, t);
 
 			if (last == nullptr)
 			{

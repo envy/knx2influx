@@ -398,6 +398,8 @@ int main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	pthread_rwlock_wrlock(&periodic_barrier);
+
 	// Parse config first
 	if (parse_config(&config, periodic_read) < 0)
 	{
@@ -406,8 +408,6 @@ int main(int argc, char **argv)
 	}
 
 	curl_global_init(CURL_GLOBAL_ALL);
-
-	pthread_rwlock_wrlock(&periodic_barrier);
 
 	std::cout << "Sending data to " << config.host << " database " << config.database << std::endl;
 
