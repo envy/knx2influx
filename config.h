@@ -50,6 +50,7 @@ typedef struct __ga
 	uint8_t convert_dpt1_to_int;
 	char **tags;
 	size_t tags_len;
+	uint8_t log_only;
 } ga_t;
 
 typedef struct __tags

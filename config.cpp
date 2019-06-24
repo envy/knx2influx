@@ -747,6 +747,21 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 		}
 		_ga.convert_dpt1_to_int = i;
 
+		// Check if we should only log to stdout
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "log_only");
+		i = 0;
+		if (obj3)
+		{
+			if (!cJSON_IsBool(obj3))
+			{
+				error_ptr = "'log_only' is not a bool!";
+				goto error;
+			}
+
+			i = obj3->type == cJSON_True ? 1 : 0;
+		}
+		_ga.log_only = i;
+
 		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "ignored_senders");
 		if (obj3)
 		{
