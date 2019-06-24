@@ -732,6 +732,23 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 		}
 		_ga.dpt = (uint8_t)obj3->valueint;
 
+		// Read out SubDPT
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "subdpt");
+		if (obj3)
+		{
+			if (!cJSON_IsNumber(obj3))
+			{
+				error_ptr = "'subdpt' is not a number!";
+				goto error;
+			}
+
+			_ga.subdpt = (uint16_t)obj3->valueint;
+		}
+		else
+		{
+			_ga.subdpt = 0;
+		}
+
 		// If DPT is 1, find out if we should convert to int
 		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "convert_to_int");
 		i = 0;

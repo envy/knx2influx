@@ -109,35 +109,51 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		{
 			bool val = knxnet::data_to_bool(data);
 			strcat(_post, "value=");
-			if (entry->convert_dpt1_to_int == 1)
-			{
-				strcat(_post, val ? "1" : "0");
-			}
-			else
-			{
-				strcat(_post, val ? "t" : "f");
-			}
+			strcat(_post, val ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
 			break;
 		}
 		case 2:
 		{
 			bool val = knxnet::data_to_bool(data);
 			strcat(_post, "value=");
-			strcat(_post, val ? "t" : "f");
+			strcat(_post, val ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
 			uint8_t other_bit = data[0] >> 1;
 			bool control = knxnet::data_to_bool(&other_bit);
 			strcat(_post, ",control=");
-			strcat(_post, control ? "t" : "f");
+			strcat(_post, control ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
 			break;
 		}
 		case 5:
 		{
 			uint8_t val = knxnet::data_to_1byte_uint(data);
-			char buf[4];
-			snprintf(buf, 4, "%u", val);
-			strcat(_post, "value=");
-			strcat(_post, buf);
-			strcat(_post, "i");
+			switch (entry->subdpt)
+			{
+				case 1:
+				{
+					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
+					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", (val/255.0f)*100.0f);
+					strcat(_post, "value=");
+					strcat(_post, buf);
+					break;
+				}
+				case 3:
+				{
+					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
+					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", (val/255.0f)*360.0f);
+					strcat(_post, "value=");
+					strcat(_post, buf);
+					break;
+				}
+				case 4:
+				{
+					char buf[4];
+					snprintf(buf, 4, "%u", val);
+					strcat(_post, "value=");
+					strcat(_post, buf);
+					strcat(_post, "i");
+					break;
+				}
+			}
 			break;
 		}
 		case 6:
