@@ -208,6 +208,24 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 			strcat(_post, buf);
 			break;
 		}
+		case 232:
+		{
+			// we assume that DPT 232.600 is meant
+			uint8_t red = data[1];
+			uint8_t green = data[2];
+			uint8_t blue = data[3];
+			char buf[4];
+			snprintf(buf, 4, "%u", red);
+			strcat(_post, "red=");
+			strcat(_post, buf);
+			snprintf(buf, 4, "%u", green);
+			strcat(_post, ",green=");
+			strcat(_post, buf);
+			snprintf(buf, 4, "%u", blue);
+			strcat(_post, ",blue=");
+			strcat(_post, buf);
+			break;
+		}
 	}
 }
 
