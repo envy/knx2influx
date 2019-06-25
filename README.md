@@ -57,12 +57,12 @@ Minimal config is:
 * `14`: 4 Byte float.
 * `232`: 3 Byte color. Will produce three fields `red`, `green` and `blue`.
 
-`convert_to_int`: Convert boolean values to integers when saving in InfluxDB. Currently only valid for DPT 1, 2 and 22.
+`convert_to_int`: Convert boolean values to integers when saving in InfluxDB. Currently only valid for DPT 1, 2, 5 and 22.
 
 `subdpt` is the optional (default `1`) sub Datapoint Type of the data. This is currently only used for DPT 5 to implement scaling:
-* `1`: (used with DPT 5 as 5.001): Scale the 1 Byte to 0..100, i.e. do `value/255 * 100`
-* `3`: (used with DPT 5 as 5.003): Scale the 1 Byte to 0..360, i.e. do `value/255 * 360`
-* `4`: (used with DPT 5 as 5.004): Do not scale at all.
+* `1`: (used with DPT 5 as 5.001): Scale the 1 Byte to 0..100, i.e. do `value/255 * 100`. This will produce a float instead of an integer if `convert_to_int` is not used.
+* `3`: (used with DPT 5 as 5.003): Scale the 1 Byte to 0..360, i.e. do `value/255 * 360`. This will produce a float instead of an integer if `convert_to_int` is not used.
+* `4`: (used with DPT 5 as 5.004): Do not scale at all. This will produce an integer.
 
 Optionally, an additional list of tags can be given:
 

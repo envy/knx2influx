@@ -130,18 +130,36 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 			{
 				case 1:
 				{
-					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
-					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", (val/255.0f)*100.0f);
 					strcat(_post, "value=");
-					strcat(_post, buf);
+					if (entry->convert_dpt1_to_int)
+					{
+						char buf[4];
+						snprintf(buf, 4, "%u", (int)((val/255.0f)*100.0f));
+						strcat(_post, buf);
+					}
+					else
+					{
+						char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
+						snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", (val/255.0f)*100.0f);
+						strcat(_post, buf);
+					}
 					break;
 				}
 				case 3:
 				{
-					char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
-					snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", (val/255.0f)*360.0f);
 					strcat(_post, "value=");
-					strcat(_post, buf);
+					if (entry->convert_dpt1_to_int)
+					{
+						char buf[4];
+						snprintf(buf, 4, "%u", (int)((val/255.0f)*360.0f));
+						strcat(_post, buf);
+					}
+					else
+					{
+						char buf[3 + DBL_MANT_DIG - DBL_MIN_EXP + 1];
+						snprintf(buf, 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1, "%f", (val/255.0f)*360.0f);
+						strcat(_post, buf);
+					}
 					break;
 				}
 				case 4:
