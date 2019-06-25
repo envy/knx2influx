@@ -242,6 +242,65 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 			strcat(_post, buf);
 			break;
 		}
+		case 22:
+		{
+			typedef union {
+				uint16_t b16;
+				uint8_t b8[2];
+				struct {
+					uint8_t reserved:1;
+					uint8_t overheatAlarm:1;
+					uint8_t frostAlarm:1;
+					uint8_t dewPointStatus:1;
+					uint8_t coolingDisabled:1;
+					uint8_t statusPreCool:1;
+					uint8_t statusEcoC:1;
+					uint8_t heatCoolMode:1;
+					uint8_t heatingDisabled:1;
+					uint8_t statusStopOptim:1;
+					uint8_t statusStartOptim:1;
+					uint8_t statusMorningBoostH:1;
+					uint8_t tempReturnLimit:1;
+					uint8_t tempFlowLimit:1;
+					uint8_t statusEcoH:1;
+					uint8_t fault:1;
+				} fields;
+			} rhcc_t;
+			rhcc_t d;
+			d.b8[0] = data[2];
+			d.b8[1] = data[1];
+			strcat(_post, "overheatAlarm=");
+			strcat(_post, d.fields.overheatAlarm ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "frostAlarm=");
+			strcat(_post, d.fields.frostAlarm ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "dewPointStatus=");
+			strcat(_post, d.fields.dewPointStatus ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "coolingDisabled=");
+			strcat(_post, d.fields.coolingDisabled ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "statusPreCool=");
+			strcat(_post, d.fields.statusPreCool ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "statusEcoC=");
+			strcat(_post, d.fields.statusEcoC ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "heatCoolMode=");
+			strcat(_post, d.fields.heatCoolMode ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "heatingDisabled=");
+			strcat(_post, d.fields.heatingDisabled ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "statusStopOptim=");
+			strcat(_post, d.fields.statusStopOptim ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "statusStartOptim=");
+			strcat(_post, d.fields.statusStartOptim ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "statusMorningBoostH=");
+			strcat(_post, d.fields.statusMorningBoostH ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "tempReturnLimit=");
+			strcat(_post, d.fields.tempReturnLimit ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "tempFlowLimit=");
+			strcat(_post, d.fields.tempFlowLimit ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "statusEcoH=");
+			strcat(_post, d.fields.statusEcoH ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, "fault=");
+			strcat(_post, d.fields.fault ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			break;
+		}
 		case 232:
 		{
 			// we assume that DPT 232.600 is meant
