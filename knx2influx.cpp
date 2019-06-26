@@ -245,7 +245,6 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		case 22:
 		{
 			typedef union {
-				uint16_t b16;
 				uint8_t b8[2];
 				struct {
 					uint8_t reserved:1;
@@ -317,6 +316,41 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 			snprintf(buf, 4, "%u", blue);
 			strcat(_post, ",blue=");
 			strcat(_post, buf);
+			break;
+		}
+		case 60000:
+		{
+			typedef union {
+				uint8_t b8;
+				struct {
+					uint8_t frostAlarm:1;
+					uint8_t controllerStatus:1;
+					uint8_t heatCool:1;
+					uint8_t dewPoint:1;
+					uint8_t frostHeatProtection:1;
+					uint8_t night:1;
+					uint8_t standby:1;
+					uint8_t comfort:1;
+				} fields;
+			} hvac_status_t;
+			hvac_status_t d;
+			d.b8 = data[1];
+			strcat(_post, "frostAlarm=");
+			strcat(_post, d.fields.frostAlarm ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, ",controllerStatus=");
+			strcat(_post, d.fields.controllerStatus ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, ",heatCool=");
+			strcat(_post, d.fields.heatCool ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, ",dewPoint=");
+			strcat(_post, d.fields.dewPoint ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, ",frostHeatProtection=");
+			strcat(_post, d.fields.frostHeatProtection ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, ",night=");
+			strcat(_post, d.fields.night ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, ",standby=");
+			strcat(_post, d.fields.standby ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, ",comfort=");
+			strcat(_post, d.fields.comfort ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
 			break;
 		}
 	}

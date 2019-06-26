@@ -56,6 +56,7 @@ Minimal config is:
 * `13`: 4 Byte signed integer.
 * `14`: 4 Byte float.
 * `232`: 3 Byte color. Will produce three fields `red`, `green` and `blue`.
+* `60000`: 1 Byte HVAC Status (non-standard).
 
 `convert_to_int`: Convert boolean values to integers when saving in InfluxDB. Currently only valid for DPT 1, 2, 5 and 22.
 

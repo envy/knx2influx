@@ -46,7 +46,7 @@ typedef struct __ga
 	knxnet::address_t *ignored_senders;
 	size_t ignored_senders_len;
 	char *series;
-	uint8_t dpt;
+	uint16_t dpt;
 	uint16_t subdpt;
 	uint8_t convert_dpt1_to_int;
 	char **tags;

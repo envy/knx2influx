@@ -730,7 +730,7 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 			error_ptr = "'dpt' is not a number!";
 			goto error;
 		}
-		_ga.dpt = (uint8_t)obj3->valueint;
+		_ga.dpt = (uint16_t)obj3->valueint;
 
 		// Read out SubDPT
 		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "subdpt");
