@@ -22,11 +22,16 @@ Minimal config is:
 
 ```json
 {
+  "interface": "192.168.0.100",
   "host": "http://influxhost:8086",
   "database": "dbname",
   "gas": []
 }
 ```
+
+`interface` is the IP of the local interface knx2influx should bind to. Put the IP of the PC/VM running knx2influx here.
+
+`host` and `database` describe the connection to InfluxDB.
 
 `gas` is a list of objects and describes, which group addresses should be monitored and what type the data has. The syntax is:
 
