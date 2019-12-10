@@ -128,6 +128,7 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 			uint8_t val = knxnet::data_to_1byte_uint(data);
 			switch (entry->subdpt)
 			{
+				case 0: // If subdpt is 0, then no was given. Assume 1 in this case
 				case 1:
 				{
 					strcat(_post, "value=");
