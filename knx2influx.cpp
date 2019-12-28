@@ -25,7 +25,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 static config_t config;
-static pthread_barrier_t bar;
+static volatile uint8_t notifier;
 static pthread_rwlock_t periodic_barrier;
 static knxnet::KNXnet *knx = nullptr;
 static CURL *handle = nullptr;
@@ -463,7 +463,7 @@ void *read_thread(void *unused)
 {
 	(void)unused;
 
-	pthread_barrier_wait(&bar);
+	notifier = 1;
 
 	while(1)
 	{
@@ -560,12 +560,13 @@ int main(int argc, char **argv)
 	knx = new knxnet::KNXnet(config.interface, config.physaddr);
 	atexit(exithandler);
 
-	pthread_barrier_init(&bar, NULL, 2);
+	notifier = 0;
 
 	pthread_t read_thread_id;
 	pthread_create(&read_thread_id, NULL, read_thread, NULL);
 
-	pthread_barrier_wait(&bar);
+	// Normally, this should be implemented with barriers but macOS does not have pthread barriers.
+	while (notifier != 1);
 
 	usleep(1000);
 
