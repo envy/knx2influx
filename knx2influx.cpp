@@ -79,7 +79,7 @@ static void post(char const *data)
 		char host[1024];
 		host[0] = 0;
 		strcat(host, config.host);
-		strcat(host, "/write?db=");
+		strcat(host, "/write?consistency=any&db=");
 		strcat(host, config.database);
 		curl_easy_setopt(handle, CURLOPT_URL, host);
 		curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 1L);
@@ -98,6 +98,19 @@ static void post(char const *data)
 	if (ret != CURLE_OK)
 	{
 		std::cerr << "Error doing curl request" << std::endl;
+		return;
+	}
+	long http_code = 0;
+	ret = curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &http_code);
+	if (ret != CURLE_OK)
+	{
+		std::cerr << "Error getting HTTP status code" << std::endl;
+		return;
+	}
+	if (http_code < 200 || http_code > 299)
+	{
+		std::cerr << "HTTP error: " << http_code << std::endl;
+		return;
 	}
 }
 
