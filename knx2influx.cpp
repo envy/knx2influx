@@ -376,7 +376,11 @@ static void construct_request(char *buf, ga_t *entry, knxnet::address_t sender, 
 	// Add tags, first the ones from the GA entries
 	strcat(buf, ",sender=");
 	char sbuf[2+1+2+1+3+1];
-	snprintf(sbuf, 2+1+2+1+3+1, "%u.%u.%u", sender.pa.area, sender.pa.line, sender.pa.member);
+	snprintf(sbuf, sizeof(sbuf), "%u.%u.%u", sender.pa.area, sender.pa.line, sender.pa.member);
+	strcat(buf, sbuf);
+	memset(sbuf, 0, sizeof(sbuf));
+	snprintf(sbuf, sizeof(sbuf), "%u/%u/%u", ga.ga.area, ga.ga.line, ga.ga.member);
+	strcat(buf, ",ga=");
 	strcat(buf, sbuf);
 	for (size_t i = 0; i < entry->tags_len; ++i)
 	{
