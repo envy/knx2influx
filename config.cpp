@@ -82,7 +82,7 @@ void print_config(config_t *config)
 				{
 					printf("           ");
 				}
-				printf("-> %s (DPT %u%s) ", entry->series, entry->dpt, entry->convert_dpt1_to_int == 1 ? " conv to int" : "");
+				printf("-> %s (DPT %u%s) ", entry->series, entry->dpt, (entry->convert_to_int ? " conv to int" : (entry->convert_to_float ? " conv to float" : "")));
 
 				bool first_tag = true;
 				printf("[");
@@ -762,7 +762,26 @@ int parse_config(config_t *config, void (*periodic_read_fkt)(knx_timer_t *timer)
 
 			i = obj3->type == cJSON_True ? 1 : 0;
 		}
-		_ga.convert_dpt1_to_int = i;
+		_ga.convert_to_int = i;
+		
+		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "convert_to_float");
+		i = 0;
+		if (obj3)
+		{
+			if (!cJSON_IsBool(obj3))
+			{
+				error_ptr = "'convert_to_float' is not a bool!";
+				goto error;
+			}
+
+			i = obj3->type == cJSON_True ? 1 : 0;
+		}
+		_ga.convert_to_float = i;
+		if (_ga.convert_to_int && _ga.convert_to_float)
+		{
+			error_ptr = "cannot convert to int and float at the same time!";
+			goto error;
+		}
 
 		// Check if we should only log to stdout
 		obj3 = cJSON_GetObjectItemCaseSensitive(obj2, "log_only");

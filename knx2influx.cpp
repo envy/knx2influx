@@ -122,18 +122,18 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		{
 			bool val = knxnet::data_to_bool(data);
 			strcat(_post, "value=");
-			strcat(_post, val ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, val ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			break;
 		}
 		case 2:
 		{
 			bool val = knxnet::data_to_bool(data);
 			strcat(_post, "value=");
-			strcat(_post, val ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, val ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			uint8_t other_bit = data[0] >> 1;
 			bool control = knxnet::data_to_bool(&other_bit);
 			strcat(_post, ",control=");
-			strcat(_post, control ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, control ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			break;
 		}
 		case 5:
@@ -145,7 +145,7 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 				case 1:
 				{
 					strcat(_post, "value=");
-					if (entry->convert_dpt1_to_int)
+					if (entry->convert_to_int)
 					{
 						char buf[4];
 						snprintf(buf, 4, "%u", (int)((val/255.0f)*100.0f));
@@ -162,7 +162,7 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 				case 3:
 				{
 					strcat(_post, "value=");
-					if (entry->convert_dpt1_to_int)
+					if (entry->convert_to_int)
 					{
 						char buf[4];
 						snprintf(buf, 4, "%u", (int)((val/255.0f)*360.0f));
@@ -230,21 +230,41 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 		case 12:
 		{
 			uint32_t val = knxnet::data_to_4byte_uint(data);
-			char buf[11];
-			snprintf(buf, 11, "%u", val);
-			strcat(_post, "value=");
-			strcat(_post, buf);
-			strcat(_post, "i");
+			uint8_t len = (entry->convert_to_float ? 12 : 11);
+			char buf[len];
+			if (entry->convert_to_float)
+			{
+				snprintf(buf, len, "%u.0", val);
+				strcat(_post, "value=");
+				strcat(_post, buf);
+			}
+			else
+			{
+				snprintf(buf, len, "%u", val);
+				strcat(_post, "value=");
+				strcat(_post, buf);
+				strcat(_post, "i");
+			}
 			break;
 		}
 		case 13:
 		{
 			int32_t val = knxnet::data_to_4byte_int(data);
-			char buf[12];
-			snprintf(buf, 12, "%d", val);
-			strcat(_post, "value=");
-			strcat(_post, buf);
-			strcat(_post, "i");
+			uint8_t len = (entry->convert_to_float ? 13 : 12);
+			char buf[len];
+			if (entry->convert_to_float)
+			{
+				snprintf(buf, len, "%d.0", val);
+				strcat(_post, "value=");
+				strcat(_post, buf);
+			}
+			else
+			{
+				snprintf(buf, len, "%d", val);
+				strcat(_post, "value=");
+				strcat(_post, buf);
+				strcat(_post, "i");
+			}
 			break;
 		}
 		case 14:
@@ -279,39 +299,47 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 					uint8_t fault:1;
 				} fields;
 			} rhcc_t;
-			rhcc_t d;
-			d.b8[0] = data[2];
-			d.b8[1] = data[1];
-			strcat(_post, "overheatAlarm=");
-			strcat(_post, d.fields.overheatAlarm ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",frostAlarm=");
-			strcat(_post, d.fields.frostAlarm ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",dewPointStatus=");
-			strcat(_post, d.fields.dewPointStatus ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",coolingDisabled=");
-			strcat(_post, d.fields.coolingDisabled ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",statusPreCool=");
-			strcat(_post, d.fields.statusPreCool ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",statusEcoC=");
-			strcat(_post, d.fields.statusEcoC ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",heatCoolMode=");
-			strcat(_post, d.fields.heatCoolMode ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",heatingDisabled=");
-			strcat(_post, d.fields.heatingDisabled ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",statusStopOptim=");
-			strcat(_post, d.fields.statusStopOptim ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",statusStartOptim=");
-			strcat(_post, d.fields.statusStartOptim ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",statusMorningBoostH=");
-			strcat(_post, d.fields.statusMorningBoostH ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",tempReturnLimit=");
-			strcat(_post, d.fields.tempReturnLimit ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",tempFlowLimit=");
-			strcat(_post, d.fields.tempFlowLimit ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",statusEcoH=");
-			strcat(_post, d.fields.statusEcoH ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
-			strcat(_post, ",fault=");
-			strcat(_post, d.fields.fault ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			switch (entry->subdpt)
+			{
+				case 0: // If subdpt is 0, then no was given. Assume 101 in this case
+				case 101:
+				{
+					rhcc_t d;
+					d.b8[0] = data[2];
+					d.b8[1] = data[1];
+					strcat(_post, "overheatAlarm=");
+					strcat(_post, d.fields.overheatAlarm ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",frostAlarm=");
+					strcat(_post, d.fields.frostAlarm ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",dewPointStatus=");
+					strcat(_post, d.fields.dewPointStatus ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",coolingDisabled=");
+					strcat(_post, d.fields.coolingDisabled ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",statusPreCool=");
+					strcat(_post, d.fields.statusPreCool ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",statusEcoC=");
+					strcat(_post, d.fields.statusEcoC ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",heatCoolMode=");
+					strcat(_post, d.fields.heatCoolMode ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",heatingDisabled=");
+					strcat(_post, d.fields.heatingDisabled ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",statusStopOptim=");
+					strcat(_post, d.fields.statusStopOptim ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",statusStartOptim=");
+					strcat(_post, d.fields.statusStartOptim ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",statusMorningBoostH=");
+					strcat(_post, d.fields.statusMorningBoostH ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",tempReturnLimit=");
+					strcat(_post, d.fields.tempReturnLimit ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",tempFlowLimit=");
+					strcat(_post, d.fields.tempFlowLimit ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",statusEcoH=");
+					strcat(_post, d.fields.statusEcoH ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					strcat(_post, ",fault=");
+					strcat(_post, d.fields.fault ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
+					break;
+				}
+			}
 			break;
 		}
 		case 232:
@@ -350,21 +378,21 @@ static void format_dpt(ga_t *entry, char *_post, uint8_t *data)
 			hvac_status_t d;
 			d.b8 = data[1];
 			strcat(_post, "frostAlarm=");
-			strcat(_post, d.fields.frostAlarm ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.frostAlarm ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			strcat(_post, ",controllerStatus=");
-			strcat(_post, d.fields.controllerStatus ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.controllerStatus ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			strcat(_post, ",heatCool=");
-			strcat(_post, d.fields.heatCool ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.heatCool ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			strcat(_post, ",dewPoint=");
-			strcat(_post, d.fields.dewPoint ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.dewPoint ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			strcat(_post, ",frostHeatProtection=");
-			strcat(_post, d.fields.frostHeatProtection ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.frostHeatProtection ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			strcat(_post, ",night=");
-			strcat(_post, d.fields.night ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.night ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			strcat(_post, ",standby=");
-			strcat(_post, d.fields.standby ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.standby ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			strcat(_post, ",comfort=");
-			strcat(_post, d.fields.comfort ? (entry->convert_dpt1_to_int ? "1" : "t") : (entry->convert_dpt1_to_int ? "0" : "f"));
+			strcat(_post, d.fields.comfort ? (entry->convert_to_int ? "1" : "t") : (entry->convert_to_int ? "0" : "f"));
 			break;
 		}
 	}

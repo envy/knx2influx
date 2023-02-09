@@ -48,7 +48,8 @@ typedef struct __ga
 	char *series;
 	uint16_t dpt;
 	uint16_t subdpt;
-	uint8_t convert_dpt1_to_int;
+	uint8_t convert_to_int;
+	uint8_t convert_to_float;
 	char **tags;
 	size_t tags_len;
 	uint8_t log_only;

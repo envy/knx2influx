@@ -60,15 +60,20 @@ Minimal config is:
 * `12`: 4 Byte unsigned integer.
 * `13`: 4 Byte signed integer.
 * `14`: 4 Byte float.
+* `22`: 16-bit field.
 * `232`: 3 Byte color. Will produce three fields `red`, `green` and `blue`.
 * `60000`: 1 Byte HVAC Status (non-standard).
 
-`convert_to_int`: Convert boolean values to integers when saving in InfluxDB. Currently only valid for DPT 1, 2, 5 and 22.
+`convert_to_int`: Convert boolean and float values to integers when saving in InfluxDB. Currently only valid for DPT 1, 2, 5 and 22.
+`convert_to_float`: Convert integer values to floats when saving in InfluxDB. Currently only valid for DPT 12 and 13.
 
-`subdpt` is the optional (default `1`) sub Datapoint Type of the data. This is currently only used for DPT 5 to implement scaling:
-* `1`: (used with DPT 5 as 5.001): Scale the 1 Byte to 0..100, i.e. do `value/255 * 100`. This will produce a float instead of an integer if `convert_to_int` is not used.
-* `3`: (used with DPT 5 as 5.003): Scale the 1 Byte to 0..360, i.e. do `value/255 * 360`. This will produce a float instead of an integer if `convert_to_int` is not used.
-* `4`: (used with DPT 5 as 5.004): Do not scale at all. This will produce an integer.
+`subdpt` is the optional sub Datapoint Type of the data.
+* DPT 5:
+  * `1` (default): (used with DPT 5 as 5.001): Scale the 1 Byte to 0..100, i.e. do `value/255 * 100`. This will produce a float instead of an integer if `convert_to_int` is not used.
+  * `3`: (used with DPT 5 as 5.003): Scale the 1 Byte to 0..360, i.e. do `value/255 * 360`. This will produce a float instead of an integer if `convert_to_int` is not used.
+  * `4`: (used with DPT 5 as 5.004): Do not scale at all. This will always produce an integer.
+* DPT 22:
+  * `101` (default): RHCC Status, all fields as tags.
 
 Optionally, an additional list of tags can be given:
 
