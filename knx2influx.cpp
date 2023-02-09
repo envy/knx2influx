@@ -527,7 +527,7 @@ int main(int argc, char **argv)
 
 	int ch;
 
-	while ((ch = getopt(argc, argv, "pd:c:")) != -1) {
+	while ((ch = getopt(argc, argv, "hpd:c:")) != -1) {
 		switch (ch) {
 			case 'p':
 				if (parse_config(&config, periodic_read) < 0)
@@ -580,6 +580,16 @@ int main(int argc, char **argv)
 				free(tofree);
 				exit(EXIT_SUCCESS);
 				break;
+			}
+			case 'h':
+			{
+				std::cout << "Usage: ./" << argv[0] << " [-h] [-p] [-d <1.2.3-4/5/6>] [-c <config_file_path>]" << std::endl;
+				std::cout << "Options:" << std::endl;
+				std::cout << "  -h  Print this help." << std::endl;
+				std::cout << "  -p  Parses the config and prints all GA, tags and types after expaning all GA wildcards." << std::endl;
+				std::cout << "  -d  Parses the config and prints all mappings for a telegram from IA 1.2.3 to GA 4/5/6." << std::endl;
+				std::cout << "  -c  Set the path to the config file." << std::endl;
+				exit(EXIT_SUCCESS);
 			}
 			case '?':
 			default:

@@ -155,7 +155,7 @@ knx2influx can also periodically issue reads like so:
 
 This will issue a periodic read every 60 seconds to `1/2/3`.
 
-### PA and GA wildcards
+### IA and GA wildcards
 
 Every time the configuration expects a physical address or a group address as a key, wildcards can be used:
 
